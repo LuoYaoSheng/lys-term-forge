@@ -1,0 +1,32 @@
+{
+  "$schema": "https://tauri.app/schemas/2.0.0/config.json",
+  "productName": "TermForge",
+  "version": "0.1.0",
+  "identifier": "com.termforge.app",
+  "build": {
+    "beforeDevCommand": "cd ../src-ui && npm run dev -- --port 1421",
+    "beforeBuildCommand": "cd ../src-ui && npm run build",
+    "frontendDist": "../src-ui/dist",
+    "devUrl": "http://localhost:1421"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TermForge",
+        "width": 1200,
+        "height": 800,
+        "devtools": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  }
+}
