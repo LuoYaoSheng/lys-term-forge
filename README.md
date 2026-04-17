@@ -15,7 +15,7 @@
 
 当前更准确的描述是：
 
-- 已有 Tauri 2 + Rust + Svelte 工作区
+- 已有 Tauri 2 + Rust + Svelte 4 工作区
 - 已有终端组件、命令层和会话管理基础
 - 仍处于早期阶段，主链路还在打磨
 
@@ -25,14 +25,14 @@
 
 - Tauri 2
 - Rust
-- Svelte
+- Svelte 4
 - Vite
 - xterm.js
 - `ssh2`
 
 注意：
 
-- 当前文档和代码现实应按 Svelte 路线书写
+- 当前文档和代码现实应按 Svelte 4 路线书写
 - 不再默认把 React 方案当成当前实现
 
 ---

@@ -1,6 +1,6 @@
 # TermForge 开发进度
 
-> 当前现实基线：Tauri 2 + Rust + Svelte + xterm.js
+> 当前现实基线：Tauri 2 + Rust + Svelte 4 + xterm.js
 
 ---
 
@@ -9,7 +9,7 @@
 ## 已完成
 
 - 项目初始化完成
-- Tauri 2 + Rust + Svelte 工作区已建立
+- Tauri 2 + Rust + Svelte 4 工作区已建立
 - 基础命令层已建立：
   - `session_open`
   - `session_send`
