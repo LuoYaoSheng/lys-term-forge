@@ -16,6 +16,7 @@
   export let sessionId: string | null = null;
   export let tabId: string;
   export let active = true;
+  export let terminalFontSize: number = 13;
 
   let container: HTMLDivElement;
   let terminal: Terminal | null = null;
@@ -24,6 +25,28 @@
   let unlisten: (() => void) | null = null;
 
   const dispatch = createEventDispatcher();
+
+  function setStatus(newStatus: typeof status) {
+    if (status === newStatus) return;
+    status = newStatus;
+    dispatch('statuschange', { tabId, status });
+  }
+
+  // Apply font size changes to running terminal
+  $: if (terminal && terminal.options.fontSize !== terminalFontSize) {
+    terminal.options.fontSize = terminalFontSize;
+    fitAddon?.fit();
+  }
+
+  /** Read theme colors from CSS custom properties at runtime */
+  function readThemeFromTokens(): { background: string; foreground: string; cursor: string } {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      background: style.getPropertyValue('--bg-primary').trim() || '#1a1b26',
+      foreground: style.getPropertyValue('--fg-primary').trim() || '#a9b1d6',
+      cursor: style.getPropertyValue('--fg-primary').trim() || '#a9b1d6',
+    };
+  }
 
   onMount(() => {
     let onResize = () => {};
@@ -34,13 +57,9 @@
 
       terminal = new Terminal({
         cursorBlink: true,
-        fontSize: 13,
+        fontSize: terminalFontSize,
         scrollback: 5000,
-        theme: {
-          background: '#1a1b26',
-          foreground: '#a9b1d6',
-          cursor: '#a9b1d6',
-        }
+        theme: readThemeFromTokens(),
       });
 
       fitAddon = new FitAddon();
@@ -50,7 +69,6 @@
       await tick();
       fitAddon.fit();
 
-      // Handle user input - send everything to backend, no local echo for SSH
       terminal.onData((d: string) => {
         const sid = sessionId;
         if (sid) {
@@ -71,11 +89,31 @@
 
   onDestroy(() => {
     unlisten?.();
+    terminal?.dispose();
   });
 
   async function connect() {
     try {
-      status = 'connecting';
+      if (unlisten) { unlisten(); unlisten = null; }
+
+      const capturedSessionId = { current: '' };
+      const capturedTerminal = terminal;
+
+      unlisten = await onAppEvent((ev) => {
+        const sid = capturedSessionId.current;
+        if (!sid) return;
+        if (!('session_id' in ev) || ev.session_id !== sid) return;
+
+        if (ev.type === 'terminal:data') {
+          capturedTerminal?.write(ev.chunk);
+        }
+        if (ev.type === 'terminal:status') {
+          capturedTerminal?.writeln(`\r\n[status] ${ev.status}${ev.msg ? `: ${ev.msg}` : ''}\r\n`);
+          if (ev.status === 'closed') setStatus('closed');
+        }
+      });
+
+      setStatus('connecting');
       terminal?.clear();
       terminal?.writeln('Connecting...');
 
@@ -85,18 +123,19 @@
         password: connection.password
       });
 
+      capturedSessionId.current = res.session_id;
       sessionId = res.session_id;
-      status = 'connected';
+      setStatus('connected');
 
-      // Clear and show connected message
       terminal?.clear();
       terminal?.writeln(`\x1b[32mConnected to ${connection.username}@${connection.host}\x1b[0m\r\n`);
 
       dispatch('connected', { sessionId: res.session_id, tabId });
     } catch (e) {
       console.error(e);
-      status = 'error';
+      setStatus('error');
       terminal?.writeln(`\r\n\x1b[31m[error] ${e}\x1b[0m\r\n`);
+      terminal?.writeln('\r\nPress \x1b[36mCtrl+R\x1b[0m or click Reconnect to retry.\r\n');
     }
   }
 
@@ -108,43 +147,21 @@
     terminal?.focus();
   }
 
-  // Subscribe to backend events
-  $: {
-    if (terminal && sessionId) {
-      if (unlisten) {
-        unlisten();
-        unlisten = null;
-      }
-
-      onAppEvent((ev) => {
-        if (!sessionId) return;
-        if (!('session_id' in ev) || ev.session_id !== sessionId) return;
-
-        if (ev.type === 'terminal:data') {
-          terminal?.write(ev.chunk);
-        }
-        if (ev.type === 'terminal:status') {
-          terminal?.writeln(`\r\n[status] ${ev.status}${ev.msg ? `: ${ev.msg}` : ''}\r\n`);
-          if (ev.status === 'closed') status = 'closed';
-        }
-      }).then((u) => (unlisten = u));
+  /** Reconnect — public API for retry after error */
+  export function reconnect() {
+    if (status === 'error' || status === 'closed') {
+      connect();
     }
   }
 </script>
 
 <div class="terminal-tab" class:active>
-  <div class="status-bar">
-    {#if status === 'connecting'}
-      <span class="connecting">Connecting...</span>
-    {:else if status === 'connected'}
-      <span class="connected">Connected to {connection.username}@{connection.host}</span>
-    {:else if status === 'error'}
-      <span class="error">Connection failed</span>
-    {:else if status === 'closed'}
-      <span class="closed">Connection closed</span>
-    {/if}
-  </div>
   <div class="xterm-container" bind:this={container}></div>
+  {#if status === 'error'}
+    <div class="reconnect-bar">
+      <button class="reconnect-btn" on:click={reconnect}>Reconnect</button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -162,23 +179,36 @@
     flex-direction: column;
   }
 
-  .status-bar {
-    padding: 4px 8px;
-    background: #1a1b26;
-    border-bottom: 1px solid #414868;
-    font-size: 11px;
-  }
-
-  .status-bar .connected { color: #9ece6a; }
-  .status-bar .connecting { color: #e0af68; }
-  .status-bar .error { color: #f7768e; }
-  .status-bar .closed { color: #565f89; }
-
   .xterm-container {
     flex: 1;
-    background: #1a1b26;
+    background: var(--bg-primary);
     min-height: 200px;
     overflow: hidden;
+  }
+
+  .reconnect-bar {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-2);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+  }
+
+  .reconnect-btn {
+    padding: var(--space-1) var(--space-4);
+    background: var(--accent);
+    color: var(--bg-primary);
+    border: none;
+    border-radius: var(--space-1);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    font-family: var(--font-sans);
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+
+  .reconnect-btn:hover {
+    background: var(--accent-hover);
   }
 
   :global(.xterm) {

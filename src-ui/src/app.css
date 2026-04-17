@@ -1,3 +1,59 @@
+/* TermForge Design Tokens — Tokyo Night Palette */
+:root {
+  /* ── Colors ── */
+  --bg-darker: #16161e;
+  --bg-primary: #1a1b26;
+  --bg-hover: #1f2335;
+  --bg-secondary: #24283b;
+  --bg-active: #343b58;
+
+  --fg-primary: #a9b1d6;
+  --fg-secondary: #565f89;
+
+  --accent: #7aa2f7;
+  --accent-hover: #5d87e5;
+  --success: #9ece6a;
+  --warning: #e0af68;
+  --error: #f7768e;
+
+  --border: #414868;
+
+  /* ── Overlays ── */
+  --overlay-backdrop: rgba(0, 0, 0, 0.6);
+  --shadow-dropdown: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  /* ── Spacing ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* ── Typography ── */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', 'Consolas', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --line-height: 1.5;
+
+  --terminal-font-size: 13px;
+
+  /* ── Layout ── */
+  --activity-bar-width: 48px;
+  --side-panel-width: 260px;
+  --side-panel-min: 180px;
+  --side-panel-max: 400px;
+  --tab-strip-height: 36px;
+  --status-bar-height: 24px;
+}
+
+/* ── Global Reset ── */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -11,7 +67,10 @@ html, body, #app {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--fg-primary);
+  background: var(--bg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

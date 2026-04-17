@@ -63,6 +63,9 @@ impl SessionManager {
             let app = app.clone();
             let session_id = session_id.clone();
             async move {
+                // Wait for frontend event listener to be ready
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
                 // Initial banner
                 emit_data(&app, &session_id, "Welcome to TermForge (fake session)\r\n");
                 emit_data(&app, &session_id, "Type anything and press Enter...\r\n\r\n");
@@ -133,6 +136,9 @@ impl SessionManager {
             let app = app.clone();
             let session_id = session_id.clone();
             async move {
+                // Wait for frontend event listener to be ready
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
                 emit_data(&app, &session_id, &format!("Connected to {}@{}\r\n\r\n", username, host));
 
                 // Read output from SSH session
@@ -145,7 +151,7 @@ impl SessionManager {
                         }
                         Ok(None) => {
                             // No data available, wait a bit before trying again
-                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                         }
                         Err(e) => {
                             emit_status(&app, &session_id, "error", Some(format!("Read error: {}", e)));

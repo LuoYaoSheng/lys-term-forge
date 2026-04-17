@@ -25,7 +25,7 @@ impl SSHSession {
             let tcp = TcpStream::connect((host.as_str(), port))?;
             tcp.set_nodelay(true)?;
             // Use a longer timeout for reading
-            tcp.set_read_timeout(Some(Duration::from_millis(1000)))?;
+            tcp.set_read_timeout(Some(Duration::from_millis(100)))?;
 
             // Create SSH session
             let mut sess = Ssh2Session::new()?;
@@ -64,10 +64,8 @@ impl SSHSession {
         task::spawn_blocking(move || {
             let mut ch_guard = channel.blocking_lock();
             if let Some(ref mut ch) = *ch_guard {
-                eprintln!("[SSH] Sending: {:?}", data);  // Debug log
                 ch.write_all(data.as_bytes())?;
                 ch.flush()?;
-                eprintln!("[SSH] Sent {} bytes", data.len());  // Debug log
             }
             Ok::<(), anyhow::Error>(())
         }).await?
@@ -84,27 +82,19 @@ impl SSHSession {
                 match ch.read(&mut buffer) {
                     Ok(n) if n > 0 => {
                         buffer.truncate(n);
-                        let preview = String::from_utf8_lossy(&buffer[..n.min(50)]);
-                        eprintln!("[SSH] Received {} bytes: {:?}", n, preview);  // Debug
                         Ok(Some(buffer))
                     }
                     Ok(_) => {
                         // Ok(0) means EOF - connection closed
-                        eprintln!("[SSH] Read EOF, connection closed");
                         Ok(None)
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock
                         || e.kind() == std::io::ErrorKind::TimedOut => {
-                        eprintln!("[SSH] Read timeout/no data");  // Debug
                         Ok(None)
                     }
-                    Err(e) => {
-                        eprintln!("[SSH] Read error: {:?}", e);
-                        Err(e.into())
-                    },
+                    Err(e) => Err(e.into()),
                 }
             } else {
-                eprintln!("[SSH] Channel is None");
                 Ok(None)
             }
         }).await?
