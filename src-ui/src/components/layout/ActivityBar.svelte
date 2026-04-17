@@ -16,7 +16,10 @@
   const dispatch = createEventDispatcher<{ viewchange: { view: string } }>();
 
   function selectView(id: string) {
-    activeView = id;
+    // Do NOT mutate activeView here — parent manages state via viewchange event.
+    // Previously mutating the prop caused a race where handleViewChange always
+    // saw activeView === id, making every click toggle collapse instead of
+    // switching views.
     dispatch('viewchange', { view: id });
   }
 </script>

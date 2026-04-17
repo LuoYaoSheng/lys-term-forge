@@ -13,26 +13,16 @@ pub async fn session_open(
     manager: State<'_, SessionManager>,
     req: SessionOpenRequest
 ) -> Result<SessionOpenResponse, String> {
-    match req.mode.as_str() {
-        "fake" => {
-            let session_id = manager
-                .open_fake(app, req.host, req.username)
-                .await;
-            Ok(SessionOpenResponse { session_id })
-        }
-        "ssh" => {
-            match manager.open_ssh(
-                app,
-                req.host,
-                req.port,
-                req.username,
-                req.password,
-            ).await {
-                Ok(session_id) => Ok(SessionOpenResponse { session_id }),
-                Err(e) => Err(e),
-            }
-        }
-        _ => Err("Invalid mode. Use 'fake' or 'ssh'".into())
+    match manager.open_ssh(
+        app,
+        req.host,
+        req.port,
+        req.username,
+        req.password,
+        req.key_path,
+    ).await {
+        Ok(session_id) => Ok(SessionOpenResponse { session_id }),
+        Err(e) => Err(e),
     }
 }
 
@@ -60,4 +50,14 @@ pub async fn session_list(
     Ok(list.into_iter().map(|(session_id, host, username, status)| SessionInfo {
         session_id, host, username, status
     }).collect())
+}
+
+#[tauri::command]
+pub async fn session_resize(
+    manager: State<'_, SessionManager>,
+    session_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    manager.resize(&session_id, cols, rows).await.map_err(|e| e.to_string())
 }

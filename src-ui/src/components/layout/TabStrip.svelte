@@ -1,7 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-
-  export type TabStatus = 'idle' | 'connecting' | 'connected' | 'closed' | 'error';
+  import type { TabStatus } from '@/lib/types';
 
   export let tabs: Array<{
     id: string;
@@ -15,7 +14,13 @@
     select: { tabId: string };
     close: { tabId: string };
     newtab: void;
+    rename: { tabId: string; title: string };
   }>();
+
+  // Inline rename state
+  let editingTabId: string | null = null;
+  let editTitle = '';
+  let editInput: HTMLInputElement | null = null;
 
   // Status dot color mapping
   const statusColors: Record<TabStatus, string> = {
@@ -34,6 +39,40 @@
     error: true,
     closed: false
   };
+
+  function startRename(tabId: string, currentTitle: string) {
+    editingTabId = tabId;
+    editTitle = currentTitle;
+    // Focus the input after Svelte renders it
+    setTimeout(() => {
+      editInput?.focus();
+      editInput?.select();
+    }, 0);
+  }
+
+  function finishRename(tabId: string) {
+    const trimmed = editTitle.trim();
+    if (trimmed && editingTabId) {
+      dispatch('rename', { tabId, title: trimmed });
+    }
+    editingTabId = null;
+    editTitle = '';
+  }
+
+  function cancelRename() {
+    editingTabId = null;
+    editTitle = '';
+  }
+
+  function handleRenameKeydown(e: KeyboardEvent, tabId: string) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      finishRename(tabId);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRename();
+    }
+  }
 </script>
 
 <div class="tab-strip">
@@ -45,8 +84,9 @@
       tabindex="0"
       aria-selected={tab.id === activeTabId}
       on:click={() => dispatch('select', { tabId: tab.id })}
+      on:dblclick|stopPropagation={() => startRename(tab.id, tab.title)}
       on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dispatch('select', { tabId: tab.id }); } }}
-      title={tab.title}
+      title={editingTabId !== tab.id ? `${tab.title} (double-click to rename)` : ''}
     >
       <span
         class="status-dot"
@@ -54,7 +94,19 @@
         class:connecting={tab.status === 'connecting'}
         style="color: {statusColors[tab.status]}"
       >●</span>
-      <span class="tab-title">{tab.title}</span>
+      {#if editingTabId === tab.id}
+        <input
+          class="tab-rename-input"
+          type="text"
+          bind:value={editTitle}
+          bind:this={editInput}
+          on:keydown={(e) => handleRenameKeydown(e, tab.id)}
+          on:blur={() => finishRename(tab.id)}
+          on:click|stopPropagation
+        />
+      {:else}
+        <span class="tab-title">{tab.title}</span>
+      {/if}
       <button
         class="tab-close"
         on:click|stopPropagation={() => dispatch('close', { tabId: tab.id })}
@@ -62,7 +114,7 @@
       >×</button>
     </div>
   {/each}
-  <button class="new-tab-btn" on:click={() => dispatch('newtab')} title="New connection">+</button>
+  <button class="new-tab-btn" on:click={() => dispatch('newtab')} title="New connection (Ctrl+T)">+</button>
 </div>
 
 <style>
@@ -136,6 +188,19 @@
     white-space: nowrap;
     font-size: var(--text-sm);
     color: var(--fg-primary);
+  }
+
+  .tab-rename-input {
+    width: 100px;
+    padding: 0 var(--space-1);
+    background: var(--bg-primary);
+    color: var(--fg-primary);
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+    font-size: var(--text-sm);
+    font-family: inherit;
+    outline: none;
+    min-width: 60px;
   }
 
   .tab-close {

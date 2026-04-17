@@ -25,7 +25,8 @@ dist-ssr
 
 # Tauri
 src-tauri/target
-src-tauri/Cargo.lock
 
 # AI tooling (local only)
 .claude/
+_bmad/
+_bmad-output/

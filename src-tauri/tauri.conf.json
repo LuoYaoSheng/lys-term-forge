@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.termforge.app",
   "build": {
-    "beforeDevCommand": "cd ../src-ui && npm run dev -- --port 1421",
+    "beforeDevCommand": "cd ../src-ui && npm run dev",
     "beforeBuildCommand": "cd ../src-ui && npm run build",
     "frontendDist": "../src-ui/dist",
     "devUrl": "http://localhost:1421"
@@ -14,18 +14,28 @@
       {
         "title": "TermForge",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 500,
+        "center": true,
+        "resizable": true
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:;",
       "capabilities": ["default"]
     },
-    "withGlobalTauri": true
+    "withGlobalTauri": false
   },
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": []
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }

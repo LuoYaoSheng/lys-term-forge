@@ -7,7 +7,6 @@
 
   const dispatch = createEventDispatcher<{
     connect: {
-      mode: 'fake' | 'ssh';
       host: string;
       port: number;
       username: string;
@@ -17,12 +16,12 @@
   }>();
 
   // Form state
-  let mode: 'fake' | 'ssh' = 'ssh';
-  let host = '127.0.0.1';
+  let host = '';
   let port = '22';
-  let username = 'root';
+  let username = '';
   let password = '';
   let selectedConnId = '';
+  let submitting = false;
 
   // DOM refs
   let hostInput: HTMLInputElement | null = null;
@@ -43,12 +42,12 @@
 
   function handleConnect() {
     if (!validate()) return;
+    if (submitting) return;
     dispatch('connect', {
-      mode,
       host: host.trim(),
       port: parseInt(port, 10),
       username: username.trim(),
-      password: mode === 'ssh' ? password : undefined
+      password: password || undefined
     });
   }
 
@@ -61,6 +60,8 @@
 
   async function handleSave() {
     if (!validate()) return;
+    if (submitting) return;
+    submitting = true;
     const name = `${username.trim()}@${host.trim()}`;
     // Client-side duplicate check
     const duplicate = savedConnections.find(
@@ -68,40 +69,42 @@
     );
     if (duplicate) {
       showToast(`Connection "${name}" already exists`, 'error');
+      submitting = false;
       return;
     }
     try {
       await connectionSave({
-        id: `conn_${Date.now()}`,
+        id: `conn_${crypto.randomUUID()}`,
         name,
-        mode,
         host: host.trim(),
         port: parseInt(port, 10),
         username: username.trim(),
-        password: mode === 'ssh' ? password : undefined
+        password: password || undefined
       });
       showToast(`Connection "${name}" saved`, 'success');
       dispatch('refresh');
-    } catch (e) {
-      showToast(`Failed to save: ${e}`, 'error');
+    } catch {
+      showToast('Failed to save connection', 'error');
+    } finally {
+      submitting = false;
     }
   }
 
   async function handleDelete(id: string, name: string) {
+    if (!confirm(`Delete connection "${name}"?`)) return;
     try {
       await connectionDelete(id);
       showToast(`Deleted "${name}"`, 'success');
       if (selectedConnId === id) selectedConnId = '';
       dispatch('refresh');
-    } catch (e) {
-      showToast(`Failed to delete: ${e}`, 'error');
+    } catch {
+      showToast('Failed to delete connection', 'error');
     }
   }
 
   function selectConnection(id: string) {
     const conn = savedConnections.find(c => c.id === id);
     if (conn) {
-      mode = conn.mode;
       host = conn.host;
       port = conn.port.toString();
       username = conn.username;
@@ -119,7 +122,6 @@
   function handleDoubleClick(conn: SavedConnection) {
     selectConnection(conn.id);
     dispatch('connect', {
-      mode: conn.mode,
       host: conn.host,
       port: conn.port,
       username: conn.username,
@@ -172,18 +174,10 @@
   {/if}
 
   <!-- Connection form -->
-  <div class="form-group">
-    <label for="conn-mode">Mode</label>
-    <select id="conn-mode" bind:value={mode}>
-      <option value="fake">Fake (Test)</option>
-      <option value="ssh">SSH</option>
-    </select>
-  </div>
-
   <div class="form-row">
     <div class="form-group">
       <label for="conn-host">Host</label>
-      <input id="conn-host" type="text" bind:value={host} bind:this={hostInput} on:blur={() => touched.host = true} />
+      <input id="conn-host" type="text" bind:value={host} bind:this={hostInput} on:blur={() => touched.host = true} placeholder="e.g. 192.168.1.100" />
       {#if touched.host && errors.host}<span class="field-error">{errors.host}</span>{/if}
     </div>
     <div class="form-group">
@@ -195,20 +189,18 @@
 
   <div class="form-group">
     <label for="conn-user">Username</label>
-    <input id="conn-user" type="text" bind:value={username} on:blur={() => touched.username = true} />
+    <input id="conn-user" type="text" bind:value={username} on:blur={() => touched.username = true} placeholder="e.g. admin" />
     {#if touched.username && errors.username}<span class="field-error">{errors.username}</span>{/if}
   </div>
 
-  {#if mode === 'ssh'}
-    <div class="form-group">
-      <label for="conn-pass">Password</label>
-      <input id="conn-pass" type="password" bind:value={password} />
-    </div>
-  {/if}
+  <div class="form-group">
+    <label for="conn-pass">Password</label>
+    <input id="conn-pass" type="password" bind:value={password} />
+  </div>
 
   <div class="form-actions">
-    <button class="btn-primary" on:click={handleConnect}>Connect</button>
-    <button class="btn-secondary" on:click={handleSave}>Save</button>
+    <button class="btn-primary" on:click={handleConnect} disabled={submitting}>Connect</button>
+    <button class="btn-secondary" on:click={handleSave} disabled={submitting}>Save</button>
   </div>
 </div>
 

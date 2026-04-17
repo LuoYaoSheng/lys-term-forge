@@ -5,7 +5,8 @@
   import TerminalTab from './components/TerminalTab.svelte';
   import ActivityBar from './components/layout/ActivityBar.svelte';
   import SidePanel from './components/layout/SidePanel.svelte';
-  import TabStrip, { type TabStatus } from './components/layout/TabStrip.svelte';
+  import TabStrip from './components/layout/TabStrip.svelte';
+  import type { TabStatus } from '@/lib/types';
   import StatusBar from './components/layout/StatusBar.svelte';
   import CommandPalette from './components/primitives/CommandPalette.svelte';
   import ToastContainer from './components/primitives/ToastContainer.svelte';
@@ -17,7 +18,6 @@
     id: string;
     title: string;
     connection: {
-      mode: 'fake' | 'ssh';
       host: string;
       port: number;
       username: string;
@@ -151,14 +151,13 @@
   async function loadSavedConnections() {
     try {
       savedConnections = await connectionList();
-    } catch (e) {
-      console.error('Failed to load saved connections:', e);
+    } catch {
+      // Silently fail — sidebar will show empty state
     }
   }
 
   // ── Tab Operations ──────────────────────────────────────────────
   function createTab(connection: {
-    mode: 'fake' | 'ssh';
     host: string;
     port: number;
     username: string;
@@ -236,6 +235,15 @@
     tick().then(() => terminalTabRefs[tabId]?.focus());
   }
 
+  function handleTabRename(e: any) {
+    const { tabId, title } = e.detail;
+    const tab = tabs.find(t => t.id === tabId);
+    if (tab) {
+      tab.title = title;
+      tabs = [...tabs];
+    }
+  }
+
   function handleFontSizeChange(e: any) {
     const size = e.detail.size;
     if (size >= 6 && size <= 32) {
@@ -244,10 +252,14 @@
   }
 
   function handleViewChange(e: any) {
-    if (sidePanelCollapsed) sidePanelCollapsed = false;
+    const view = e.detail.view;
     // Toggle collapse if clicking the already-active view
-    if (activeView === e.detail.view) {
+    if (activeView === view) {
       sidePanelCollapsed = !sidePanelCollapsed;
+    } else {
+      // Switch to new view and ensure panel is open
+      activeView = view;
+      sidePanelCollapsed = false;
     }
   }
 
@@ -278,13 +290,14 @@
       on:select={handleTabSelect}
       on:close={(e) => closeTab(e.detail.tabId)}
       on:newtab={handleNewTab}
+      on:rename={handleTabRename}
     />
 
     <div class="tabs-container">
       {#if tabs.length === 0}
         <EmptyState
           text="No active terminals"
-          hint="Press Ctrl+T or use the sidebar to connect"
+          hint="Use the sidebar to fill in SSH details and click Connect. Each connection opens a new tab."
         />
       {:else}
         {#each tabs as tab (tab.id)}

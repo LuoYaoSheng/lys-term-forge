@@ -14,9 +14,8 @@ export async function onAppEvent(cb: (e: AppEvent) => void): Promise<() => void>
     const appWindow = getCurrentWindow();
     const unlisten = await appWindow.listen<AppEvent>('app_event', (event) => cb(event.payload));
     return () => unlisten();
-  } catch (e) {
-    console.error('Failed to setup event listener:', e);
-    // Return a no-op function
+  } catch {
+    // Event system unavailable — return no-op
     return () => {};
   }
 }
@@ -26,7 +25,7 @@ export async function sessionOpen(req: {
   port: number;
   username: string;
   password?: string;
-  mode: 'fake' | 'ssh';
+  key_path?: string;
 }): Promise<{ session_id: string }> {
   return invoke('session_open', { req });
 }
@@ -39,6 +38,10 @@ export async function sessionClose(req: { session_id: string }): Promise<void> {
   return invoke('session_close', { req });
 }
 
+export async function sessionResize(sessionId: string, cols: number, rows: number): Promise<void> {
+  return invoke('session_resize', { sessionId, cols, rows });
+}
+
 export async function sessionList(): Promise<
   Array<{ session_id: string; host: string; username: string; status: string }>
 > {
@@ -49,7 +52,6 @@ export async function sessionList(): Promise<
 export interface SavedConnection {
   id: string;
   name: string;
-  mode: 'fake' | 'ssh';
   host: string;
   port: number;
   username: string;

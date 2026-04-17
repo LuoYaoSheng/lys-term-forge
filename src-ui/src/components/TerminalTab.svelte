@@ -1,12 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher, tick } from 'svelte';
-  import { onAppEvent, sessionSend } from '@/lib/api';
+  import { onAppEvent, sessionSend, sessionResize } from '@/lib/api';
   import type { Terminal } from 'xterm';
-  import { FitAddon } from 'xterm-addon-fit';
+  import type { FitAddon } from 'xterm-addon-fit';
   import 'xterm/css/xterm.css';
 
   export let connection: {
-    mode: 'fake' | 'ssh';
     host: string;
     port: number;
     username: string;
@@ -20,7 +19,7 @@
 
   let container: HTMLDivElement;
   let terminal: Terminal | null = null;
-  let fitAddon: any = null;
+  let fitAddon: FitAddon | null = null;
   let status: 'idle' | 'connecting' | 'connected' | 'closed' | 'error' = 'idle';
   let unlisten: (() => void) | null = null;
 
@@ -32,10 +31,20 @@
     dispatch('statuschange', { tabId, status });
   }
 
-  // Apply font size changes to running terminal
+  // Apply font size changes to running terminal, then notify backend of new dimensions
   $: if (terminal && terminal.options.fontSize !== terminalFontSize) {
     terminal.options.fontSize = terminalFontSize;
-    fitAddon?.fit();
+    doFit();
+  }
+
+  /** Fit terminal to container and notify backend of new PTY size */
+  function doFit() {
+    if (!fitAddon) return;
+    fitAddon.fit();
+    const proposed = fitAddon.proposeDimensions();
+    if (proposed && sessionId) {
+      sessionResize(sessionId, proposed.cols, proposed.rows).catch(() => {});
+    }
   }
 
   /** Read theme colors from CSS custom properties at runtime */
@@ -67,16 +76,16 @@
 
       terminal.open(container);
       await tick();
-      fitAddon.fit();
+      doFit();
 
       terminal.onData((d: string) => {
         const sid = sessionId;
         if (sid) {
-          sessionSend({ session_id: sid, data: d }).catch(console.error);
+          sessionSend({ session_id: sid, data: d }).catch(() => {});
         }
       });
 
-      onResize = () => fitAddon?.fit();
+      onResize = () => doFit();
       window.addEventListener('resize', onResize);
 
       await connect();
@@ -91,6 +100,17 @@
     unlisten?.();
     terminal?.dispose();
   });
+
+  /** Friendly error message from raw exception */
+  function friendlyError(e: unknown): string {
+    const msg = String(e);
+    if (msg.includes('Connection refused')) return 'Connection refused — check host and port';
+    if (msg.includes('Authentication')) return 'Authentication failed — check username and password';
+    if (msg.includes('timed out') || msg.includes('timeout')) return 'Connection timed out';
+    if (msg.includes('Name or service not known')) return 'Host not found — check the address';
+    if (msg.includes('Network is unreachable')) return 'Network unreachable';
+    return 'Connection failed';
+  }
 
   async function connect() {
     try {
@@ -118,29 +138,37 @@
       terminal?.writeln('Connecting...');
 
       const { sessionOpen } = await import('@/lib/api');
-      const res = await sessionOpen({
-        ...connection,
-        password: connection.password
-      });
+
+      // Connection timeout: 15 seconds
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timed out')), 15000)
+      );
+
+      const res = await Promise.race([
+        sessionOpen({ ...connection, password: connection.password }),
+        timeout
+      ]);
 
       capturedSessionId.current = res.session_id;
       sessionId = res.session_id;
       setStatus('connected');
 
       terminal?.clear();
-      terminal?.writeln(`\x1b[32mConnected to ${connection.username}@${connection.host}\x1b[0m\r\n`);
 
       dispatch('connected', { sessionId: res.session_id, tabId });
+
+      // Send initial PTY size after connection
+      doFit();
     } catch (e) {
-      console.error(e);
       setStatus('error');
-      terminal?.writeln(`\r\n\x1b[31m[error] ${e}\x1b[0m\r\n`);
+      const msg = friendlyError(e);
+      terminal?.writeln(`\r\n\x1b[31m[error] ${msg}\x1b[0m\r\n`);
       terminal?.writeln('\r\nPress \x1b[36mCtrl+R\x1b[0m or click Reconnect to retry.\r\n');
     }
   }
 
   export function fit() {
-    fitAddon?.fit();
+    doFit();
   }
 
   export function focus() {
@@ -159,7 +187,7 @@
   <div class="xterm-container" bind:this={container}></div>
   {#if status === 'error'}
     <div class="reconnect-bar">
-      <button class="reconnect-btn" on:click={reconnect}>Reconnect</button>
+      <button class="reconnect-btn" on:click={reconnect} aria-label="Reconnect">Reconnect</button>
     </div>
   {/if}
 </div>

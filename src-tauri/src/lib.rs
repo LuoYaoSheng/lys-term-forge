@@ -19,6 +19,7 @@ pub fn run() {
             session_send,
             session_close,
             session_list,
+            session_resize,
             // Connection store commands
             connection_list,
             connection_save,

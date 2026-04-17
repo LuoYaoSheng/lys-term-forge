@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import type { TabStatus } from './TabStrip.svelte';
+  import type { TabStatus } from '@/lib/types';
 
   export let activeTab: { title: string; status: TabStatus } | null = null;
   export let fontSize: number = 13;

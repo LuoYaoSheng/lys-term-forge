@@ -2,9 +2,9 @@
 name = "termforge"
 version = "0.1.0"
 description = "A Tauri-based terminal application"
-authors = ["you"]
-license = ""
-repository = ""
+authors = ["TermForge Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/luoyaosheng/TermForge"
 edition = "2021"
 
 [lib]
@@ -24,6 +24,13 @@ anyhow = "1"
 nanoid = "0.4"
 ssh2 = "0.9"
 dirs = "5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+aes-gcm = "0.10"
+base64 = "0.22"
+sha2 = "0.10"
+gethostname = "0.5"
+whoami = "1"
 
 [features]
 default = ["custom-protocol"]
