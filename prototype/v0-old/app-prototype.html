@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TermForge 可交互原型（旧项目逆向 · 页面/功能/五态全覆盖）</title>
+<style>
+/* ========== 设计令牌（对齐 src-ui/src/app.css Tokyo Night） ========== */
+:root{
+  --bg-darker:#16161e; --bg-primary:#1a1b26; --bg-hover:#1f2335; --bg-secondary:#24283b; --bg-active:#343b58;
+  --fg-primary:#a9b1d6; --fg-secondary:#565f89;
+  --accent:#7aa2f7; --accent-hover:#5d87e5; --success:#9ece6a; --warning:#e0af68; --error:#f7768e;
+  --border:#414868;
+  --overlay-backdrop:rgba(0,0,0,.6);
+  --shadow-dropdown:0 4px 12px rgba(0,0,0,.3); --shadow-modal:0 8px 32px rgba(0,0,0,.4);
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;
+  --font-mono:'JetBrains Mono','Fira Code','Cascadia Code','SF Mono','Consolas','Menlo',monospace;
+  --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --text-xs:11px;--text-sm:13px;--text-base:14px;
+  --activity-bar-width:48px;--tab-strip-height:36px;--status-bar-height:24px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{font-family:var(--font-sans);font-size:var(--text-sm);color:var(--fg-primary);background:#0d0d12;-webkit-font-smoothing:antialiased}
+
+/* ========== 舞台：评审面板 + 桌面窗口画框 ========== */
+#stage{display:flex;width:100%;height:100vh;gap:0}
+#windowWrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+#reviewPanel{width:330px;flex-shrink:0;height:100%;overflow-y:auto;background:#12121a;border-left:1px solid var(--border);padding:var(--space-3);font-size:var(--text-xs)}
+#reviewPanel h1{font-size:var(--text-base);color:var(--accent);margin-bottom:2px}
+#reviewPanel .sub{color:var(--fg-secondary);margin-bottom:var(--space-3);line-height:1.5}
+#reviewPanel h2{font-size:var(--text-sm);color:var(--fg-primary);margin:var(--space-4) 0 var(--space-2);border-bottom:1px solid var(--border);padding-bottom:var(--space-1)}
+#reviewPanel section{margin-bottom:var(--space-2)}
+.scenario-item{display:block;width:100%;text-align:left;background:transparent;border:1px solid transparent;color:var(--fg-primary);padding:5px var(--space-2);border-radius:var(--space-1);cursor:pointer;font-size:var(--text-xs);font-family:inherit;margin-bottom:2px}
+.scenario-item:hover{background:var(--bg-hover)}
+.scenario-item.active{background:var(--bg-active);color:#fff;border-color:var(--accent)}
+.scenario-item .tag{float:right;color:var(--fg-secondary);font-size:10px}
+.scenario-item.active .tag{color:var(--accent)}
+.btnrow{display:flex;flex-wrap:wrap;gap:var(--space-1);margin-bottom:var(--space-1)}
+.sim-btn{background:var(--bg-secondary);border:1px solid var(--border);color:var(--fg-primary);border-radius:var(--space-1);padding:4px var(--space-2);cursor:pointer;font-size:var(--text-xs);font-family:var(--font-mono)}
+.sim-btn:hover{background:var(--bg-hover);border-color:var(--accent)}
+.page-nav-item{display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;border:none;color:var(--fg-primary);padding:4px var(--space-2);border-radius:var(--space-1);cursor:pointer;font-size:var(--text-xs);font-family:inherit;text-align:left}
+.page-nav-item:hover{background:var(--bg-hover)}
+.page-nav-item .pid{color:var(--accent);font-family:var(--font-mono);flex-shrink:0;margin-right:var(--space-2)}
+.page-nav-item .pfn{color:var(--fg-secondary);font-size:10px}
+.note{color:var(--fg-secondary);line-height:1.6;margin:var(--space-1) 0}
+.note b{color:var(--fg-primary);font-weight:600}
+.kv{font-family:var(--font-mono);font-size:10px;color:var(--fg-secondary);background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--space-1);padding:var(--space-2);line-height:1.7;white-space:pre;overflow-x:auto;margin:var(--space-1) 0}
+.kv .hl{color:var(--success)}
+.kv .warn{color:var(--warning)}
+.plan-list li{color:var(--fg-secondary);line-height:1.7;list-style:none;padding-left:0}
+.plan-list li::before{content:'○ ';color:var(--fg-secondary)}
+.plan-list li b{color:var(--warning);font-weight:600}
+
+/* ========== 桌面窗口画框（1200×800，模拟 Tauri 主窗口） ========== */
+#windowFrame{width:1200px;height:800px;background:var(--bg-primary);border:1px solid #2a2a3a;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.7);transform-origin:center center;position:relative}
+.titlebar{height:34px;flex-shrink:0;background:var(--bg-darker);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--space-3);gap:var(--space-2);user-select:none}
+.traffic{display:flex;gap:7px;margin-right:var(--space-3)}
+.traffic span{width:12px;height:12px;border-radius:50%;display:inline-block}
+.traffic .r{background:#f7768e}.traffic .y{background:#e0af68}.traffic .g{background:#9ece6a}
+.titlebar .title{flex:1;text-align:center;color:var(--fg-secondary);font-size:var(--text-xs);letter-spacing:.06em}
+.titlebar .winbadge{font-size:10px;color:var(--fg-secondary);background:var(--bg-secondary);border:1px solid var(--border);border-radius:99px;padding:2px 8px;font-family:var(--font-mono)}
+
+/* ========== PAGE001 应用外壳 ========== */
+.app{flex:1;display:flex;overflow:hidden;position:relative}
+#activityBar{width:var(--activity-bar-width);display:flex;flex-direction:column;align-items:center;padding:var(--space-2) 0;background:var(--bg-darker);border-right:1px solid var(--border);flex-shrink:0}
+.act-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);cursor:pointer;border-radius:var(--space-1);margin-bottom:var(--space-1);position:relative;transition:color .15s,background .15s}
+.act-btn svg{width:22px;height:22px}
+.act-btn:hover{color:var(--fg-primary);background:var(--bg-hover)}
+.act-btn.active{color:var(--accent);background:var(--bg-active)}
+.act-btn.active::before{content:'';position:absolute;left:-4px;top:8px;bottom:8px;width:3px;background:var(--accent);border-radius:2px}
+.act-dot{position:absolute;right:3px;top:3px;font-size:8px;color:var(--fg-secondary);font-family:var(--font-mono)}
+
+#sidePanel{height:100%;position:relative;background:var(--bg-secondary);border-right:1px solid var(--border);flex-shrink:0;overflow:hidden;transition:width .15s ease}
+#sidePanel.dragging{transition:none}
+#sidePanel .panel-inner{display:flex;flex-direction:column;height:100%;min-width:180px}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border);background:var(--bg-darker);flex-shrink:0}
+.panel-title{font-size:var(--text-sm);font-weight:600;color:var(--fg-secondary);text-transform:uppercase;letter-spacing:.05em}
+.collapse-btn{width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);cursor:pointer;border-radius:var(--space-1);padding:0}
+.collapse-btn svg{width:14px;height:14px;transition:transform .15s}
+.collapse-btn:hover{color:var(--fg-primary);background:var(--bg-hover)}
+#sidePanel.collapsed .collapse-btn svg{transform:rotate(180deg)}
+.panel-content{flex:1;overflow-y:auto;padding:var(--space-3);position:relative}
+.drag-handle{position:absolute;top:0;right:0;bottom:0;width:4px;cursor:col-resize;background:transparent;transition:background .15s;z-index:5}
+.drag-handle:hover{background:var(--accent)}
+
+/* 页面编号角标 */
+.page-badge{position:absolute;top:6px;right:8px;font-size:9px;font-family:var(--font-mono);color:var(--fg-secondary);background:rgba(22,22,30,.85);border:1px solid var(--border);border-radius:99px;padding:1px 7px;z-index:20;pointer-events:none;white-space:nowrap}
+.page-badge b{color:var(--accent);font-weight:600}
+
+/* ========== PAGE002 连接表单 ========== */
+.form-row{display:flex;gap:var(--space-2)}
+.form-group{margin-bottom:var(--space-3);flex:1;min-width:0}
+.form-group label{display:block;margin-bottom:var(--space-1);font-size:var(--text-xs);color:var(--fg-secondary)}
+.form-group input,.form-group select{width:100%;padding:var(--space-1) var(--space-2);background:var(--bg-primary);color:var(--fg-primary);border:1px solid var(--border);border-radius:var(--space-1);font-size:var(--text-sm);font-family:var(--font-sans)}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--accent)}
+.field-error{display:block;color:var(--error);font-size:var(--text-xs);margin-top:2px}
+.form-actions{display:flex;gap:var(--space-2);margin-top:var(--space-4)}
+.btn-primary,.btn-secondary{flex:1;padding:var(--space-2);border:none;border-radius:var(--space-1);cursor:pointer;font-weight:500;font-size:var(--text-sm);font-family:var(--font-sans);transition:opacity .15s}
+.btn-primary{background:var(--accent);color:var(--bg-primary)}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-secondary{background:var(--border);color:var(--fg-primary)}
+.btn-secondary:hover{background:var(--fg-secondary)}
+.btn-primary:disabled,.btn-secondary:disabled{opacity:.5;cursor:not-allowed}
+.saved-list{margin-bottom:var(--space-3);border:1px solid var(--border);border-radius:var(--space-1);overflow:hidden}
+.saved-item{display:flex;align-items:center;justify-content:space-between;padding:var(--space-1) var(--space-2);cursor:pointer;font-size:var(--text-xs);color:var(--fg-primary);transition:background .1s}
+.saved-item:not(:last-child){border-bottom:1px solid var(--border)}
+.saved-item:hover{background:var(--bg-hover)}
+.saved-item.selected{background:var(--bg-active)}
+.saved-item-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.saved-item-delete{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);cursor:pointer;font-size:14px;line-height:1;padding:0;border-radius:var(--space-1);flex-shrink:0;opacity:0;transition:opacity .1s,color .1s}
+.saved-item:hover .saved-item-delete{opacity:1}
+.saved-item-delete:hover{color:var(--error)}
+
+/* ========== TabStrip ========== */
+#tabStrip{display:flex;height:var(--tab-strip-height);background:var(--bg-darker);border-bottom:1px solid var(--border);padding:0 var(--space-2);align-items:flex-end;flex-shrink:0;overflow-x:auto;overflow-y:hidden}
+.tab{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-1) var(--space-3);padding-bottom:calc(var(--space-1) + 1px);background:var(--bg-primary);border:1px solid var(--border);border-bottom:none;border-radius:var(--space-1) var(--space-1) 0 0;cursor:pointer;user-select:none;color:var(--fg-primary);font-size:var(--text-sm);white-space:nowrap;max-width:180px;min-width:0;transition:background .1s}
+.tab:hover{background:var(--bg-hover)}
+.tab.active{background:var(--bg-active);border-bottom:1px solid var(--bg-active);margin-bottom:-1px;padding-bottom:var(--space-1)}
+.status-dot{font-size:8px;line-height:1;flex-shrink:0;opacity:.7}
+.status-dot.filled{opacity:1}
+.status-dot.connecting{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+.tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab-rename-input{width:100px;padding:0 var(--space-1);background:var(--bg-primary);color:var(--fg-primary);border:1px solid var(--accent);border-radius:2px;font-size:var(--text-sm);font-family:inherit;outline:none;min-width:60px}
+.tab-close{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);cursor:pointer;font-size:14px;line-height:1;padding:0;border-radius:var(--space-1);flex-shrink:0}
+.tab-close:hover{color:var(--error);background:rgba(247,118,142,.15)}
+.new-tab-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);border-radius:var(--space-1);cursor:pointer;font-size:18px;line-height:1;flex-shrink:0;align-self:center}
+.new-tab-btn:hover{color:var(--fg-primary);background:var(--bg-hover)}
+
+/* ========== PAGE003 终端 / PAGE009 空态 ========== */
+#contentArea{flex:1;position:relative;overflow:hidden;background:var(--bg-primary)}
+.terminal-pane{position:absolute;top:0;left:0;right:0;bottom:0;display:none;flex-direction:column}
+.terminal-pane.active{display:flex}
+.term-body{flex:1;overflow-y:auto;padding:var(--space-2) var(--space-3);font-family:var(--font-mono);line-height:1.45;white-space:pre-wrap;word-break:break-all}
+.term-line{min-height:1.45em}
+.term-err{color:var(--error)}
+.term-status{color:var(--warning)}
+.term-dim{color:var(--fg-secondary)}
+.term-ok{color:var(--success)}
+.term-input-row{display:flex;align-items:center;gap:6px;padding:0 var(--space-3) var(--space-2);font-family:var(--font-mono);flex-shrink:0}
+.term-prompt{color:var(--success);font-family:var(--font-mono);flex-shrink:0}
+.term-input{flex:1;background:transparent;border:none;outline:none;color:var(--fg-primary);font-family:var(--font-mono);caret-color:var(--accent)}
+.reconnect-bar{display:flex;justify-content:center;padding:var(--space-2);background:var(--bg-secondary);border-top:1px solid var(--border)}
+.reconnect-btn{padding:var(--space-1) var(--space-4);background:var(--accent);color:var(--bg-primary);border:none;border-radius:var(--space-1);cursor:pointer;font-size:var(--text-sm);font-family:var(--font-sans);font-weight:500}
+.reconnect-btn:hover{background:var(--accent-hover)}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:var(--space-5);text-align:center}
+.empty-icon{width:32px;height:32px;color:var(--fg-secondary);opacity:.5;margin-bottom:var(--space-3)}
+.empty-icon svg{width:100%;height:100%}
+.empty-text{font-size:var(--text-sm);color:var(--fg-secondary);margin-bottom:var(--space-1)}
+.empty-hint{font-size:var(--text-xs);color:var(--fg-secondary);opacity:.7;max-width:340px;line-height:1.6}
+
+/* ========== StatusBar ========== */
+#statusBar{display:flex;align-items:center;justify-content:space-between;height:var(--status-bar-height);background:var(--bg-secondary);border-top:1px solid var(--border);padding:0 var(--space-2);flex-shrink:0;font-size:var(--text-xs);color:var(--fg-secondary);user-select:none}
+.status-left{display:flex;align-items:center;gap:var(--space-1)}
+.status-idle{opacity:.5}
+.status-right{display:flex;align-items:center;gap:var(--space-2)}
+.separator{color:var(--border)}
+.font-size-area{position:relative}
+.font-size-btn{background:transparent;border:none;color:var(--fg-secondary);cursor:pointer;font-size:var(--text-xs);font-family:inherit;padding:0 var(--space-1);border-radius:2px;line-height:1}
+.font-size-btn:hover{color:var(--fg-primary);background:var(--bg-hover)}
+.font-menu{position:absolute;bottom:100%;right:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--space-1);box-shadow:var(--shadow-dropdown);padding:var(--space-1) 0;margin-bottom:var(--space-1);min-width:80px;z-index:100}
+.font-option{display:block;width:100%;padding:var(--space-1) var(--space-2);background:transparent;border:none;color:var(--fg-primary);font-size:var(--text-xs);font-family:inherit;cursor:pointer;text-align:left;line-height:1}
+.font-option:hover{background:var(--bg-hover)}
+.font-option.active{color:var(--accent);font-weight:600}
+.pty-size{font-family:var(--font-mono);cursor:help}
+
+/* ========== PAGE008 命令面板 ========== */
+#paletteBackdrop{position:absolute;top:34px;left:0;right:0;bottom:0;background:var(--overlay-backdrop);display:flex;justify-content:center;padding-top:18%;z-index:2000}
+#paletteBackdrop.hidden{display:none}
+.palette-panel{width:480px;max-width:80%;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--space-2);box-shadow:var(--shadow-modal);overflow:hidden;position:relative}
+.palette-input{width:100%;padding:var(--space-3) var(--space-4);background:var(--bg-primary);color:var(--fg-primary);border:none;border-bottom:1px solid var(--border);font-size:var(--text-base);font-family:var(--font-sans);outline:none}
+.palette-input::placeholder{color:var(--fg-secondary)}
+.palette-hint{padding:var(--space-6) var(--space-4);text-align:center;color:var(--fg-secondary);font-size:var(--text-sm)}
+.palette-placeholder{opacity:.5;margin-left:var(--space-1)}
+
+/* ========== PAGE010 Toast ========== */
+#toastContainer{position:absolute;bottom:calc(var(--status-bar-height) + var(--space-2));right:var(--space-3);display:flex;flex-direction:column-reverse;gap:var(--space-2);z-index:3000;pointer-events:none}
+.toast{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-3);background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--space-1);box-shadow:var(--shadow-dropdown);font-size:var(--text-sm);color:var(--fg-primary);cursor:pointer;pointer-events:auto;max-width:360px;text-align:left;animation:toast-in .2s ease-out forwards;transition:opacity .25s ease,transform .25s ease}
+.toast.toast-leaving{opacity:0;transform:translateY(8px)}
+.toast-success{border-left:3px solid var(--success)}
+.toast-error{border-left:3px solid var(--error)}
+.toast-info{border-left:3px solid var(--accent)}
+.toast-icon{flex-shrink:0;font-size:var(--text-base);font-weight:700}
+.toast-success .toast-icon{color:var(--success)}
+.toast-error .toast-icon{color:var(--error)}
+.toast-info .toast-icon{color:var(--accent)}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ========== 自绘 confirm 对话框（模拟 window.confirm） ========== */
+#confirmOverlay{position:absolute;top:34px;left:0;right:0;bottom:0;background:var(--overlay-backdrop);display:flex;align-items:center;justify-content:center;z-index:2500}
+#confirmOverlay.hidden{display:none}
+.confirm-box{width:360px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--space-2);box-shadow:var(--shadow-modal);padding:var(--space-4)}
+.confirm-msg{font-size:var(--text-sm);line-height:1.6;margin-bottom:var(--space-4);color:var(--fg-primary)}
+.confirm-actions{display:flex;gap:var(--space-2);justify-content:flex-end}
+.confirm-actions button{padding:var(--space-1) var(--space-4);border:none;border-radius:var(--space-1);cursor:pointer;font-size:var(--text-sm);font-family:var(--font-sans)}
+.confirm-cancel{background:var(--border);color:var(--fg-primary)}
+.confirm-ok{background:var(--error);color:#1a1b26;font-weight:600}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="stage">
+  <!-- ═══════════ 桌面窗口画框（模拟 Tauri 主窗口 1200×800） ═══════════ -->
+  <div id="windowWrap">
+    <div id="windowFrame">
+      <div class="titlebar">
+        <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="title">TermForge</div>
+        <div class="winbadge">PAGE001 · F001-F003 / F010-F013</div>
+      </div>
+      <div class="app">
+        <!-- 活动栏 -->
+        <div id="activityBar"></div>
+        <!-- 侧栏 -->
+        <div id="sidePanel">
+          <div class="panel-inner">
+            <div class="panel-header">
+              <span class="panel-title" id="panelTitle">Connections</span>
+              <button class="collapse-btn" id="collapseBtn" title="Collapse Side Panel"></button>
+            </div>
+            <div class="panel-content" id="panelContent" style="position:relative"></div>
+          </div>
+          <div class="drag-handle" id="dragHandle"></div>
+        </div>
+        <!-- 主区 -->
+        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0">
+          <div id="tabStrip"></div>
+          <div id="contentArea"></div>
+          <div id="statusBar">
+            <div class="status-left" id="statusLeft"></div>
+            <div class="status-right">
+              <span class="pty-size" id="ptySize" title="PTY 尺寸（F017 模拟：随窗口/字号变化）">80×24</span>
+              <span class="separator">|</span>
+              <span class="status-item">UTF-8</span>
+              <span class="separator">|</span>
+              <div class="font-size-area" id="fontArea">
+                <button class="font-size-btn" id="fontBtn" title="Change terminal font size">13px mono ▾</button>
+                <div class="font-menu hidden" id="fontMenu"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- PAGE008 命令面板 -->
+      <div id="paletteBackdrop" class="hidden">
+        <div class="palette-panel" id="palettePanel">
+          <span class="page-badge"><b>PAGE008</b> · F033（占位）</span>
+          <input type="text" class="palette-input" id="paletteInput" placeholder="Search commands...">
+          <div class="palette-hint">Command Palette <span class="palette-placeholder">(placeholder)</span></div>
+        </div>
+      </div>
+      <!-- PAGE010 Toast 容器 -->
+      <div id="toastContainer"></div>
+      <!-- confirm 对话框 -->
+      <div id="confirmOverlay" class="hidden">
+        <div class="confirm-box">
+          <div class="confirm-msg" id="confirmMsg"></div>
+          <div class="confirm-actions">
+            <button class="confirm-cancel" id="confirmCancel">取消</button>
+            <button class="confirm-ok" id="confirmOk">删除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 评审面板 ═══════════ -->
+  <div id="reviewPanel">
+    <h1>TermForge 原型评审面板</h1>
+    <div class="sub">旧项目逆向 · 单文件可交互原型<br>来源基线：docs/01_reverse/REVERSE_ANALYSIS.md / docs/02_product/PRD.md / docs/02_product/PAGE_SPEC.md</div>
+
+    <h2>场景库（五态切换）</h2>
+    <section id="scenarioList"></section>
+
+    <h2>快捷键模拟</h2>
+    <div class="note">对应 App.svelte handleKeydown 的 9 组快捷键（原型内亦可用真实键盘触发）</div>
+    <div class="btnrow" id="shortcutRow"></div>
+
+    <h2>页面导航（10 页）</h2>
+    <section id="pageNav"></section>
+
+    <h2>后端事实（原型模拟依据）</h2>
+    <div class="note"><b>8 个 Tauri 命令</b>：session_open / session_send / session_close / <b>session_list（后端已注册，前端从未调用）</b> / session_resize / connection_list / connection_save / connection_delete</div>
+    <div class="note"><b>连接持久化</b> ~/.termforge/connections.json（0600，密码 AES-256-GCM 加密）：</div>
+    <div class="kv">{
+  "connections": [
+    { "id": "conn_a1b2…",
+      "name": "admin@192.168.1.100",
+      <span class="hl">"password": "base64(AES-256-GCM…)"</span>
+    }
+  ]
+}</div>
+    <div class="note"><b>known_hosts</b>（TOFU + SHA-256 指纹）：首次连接记录，指纹变更时报 MITM 错误（场景「主机密钥变更」）</div>
+
+    <h2>规划能力（未实现，如实列出）</h2>
+    <ul class="plan-list">
+      <li><b>F029/F038</b> SFTP 全部文件操作（视图为空占位）</li>
+      <li><b>F030/F039</b> 端口转发 Local/SOCKS5（空占位）</li>
+      <li><b>F031/F040</b> Runbook 引擎（空占位）</li>
+      <li><b>F032/F034</b> 设置视图与持久化（空占位）</li>
+      <li><b>F035</b> 编辑连接（后端可按 id 更新，UI 无入口）</li>
+      <li><b>F036</b> 分组/标签/搜索/导入导出</li>
+      <li><b>F037</b> 自动重连（仅事件枚举预留 reconnecting）</li>
+      <li><b>F041</b> OS Keychain（现为机器绑定 AES-GCM 替代）</li>
+      <li><b>F042</b> 危险命令确认</li>
+      <li><b>F043</b> 监控面板（仅 monitor:snapshot 类型预留）</li>
+      <li><b>F044</b> 终端复制粘贴</li>
+      <li><b>F045</b> 密钥认证 UI（后端 key_path 通道已有）</li>
+      <li><b>F046</b> 应用更新通知</li>
+    </ul>
+
+    <h2>已知缺陷（如实保留展示）</h2>
+    <div class="note">① 终端错误提示写 <b>Ctrl+R 重试</b>，但快捷键未注册（死文案，实际用 Reconnect 按钮）；② <span class="kv" style="display:inline;padding:1px 4px">connection_save 加密失败时降级明文落盘（store.rs L104-107）</span>；③ session_close 失败时 Tab 仍被移除（后端会话泄漏，deferred-work 已记录）。</div>
+
+    <h2>Toast 演示</h2>
+    <div class="btnrow">
+      <button class="sim-btn" onclick="demoToast('success')">success</button>
+      <button class="sim-btn" onclick="demoToast('error')">error</button>
+      <button class="sim-btn" onclick="demoToast('info')">info</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+ * TermForge 可交互原型（零外部资源 · 纯浏览器运行）
+ * 页面：PAGE001-PAGE010；功能：F001-F046（规划项以占位/清单呈现）
+ * ============================================================ */
+
+/* ---------- 内联 SVG 图标（对齐 src-ui/src/lib/icons.ts） ---------- */
+var ICONS = {
+  connections: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><path d="M8 8a4 4 0 0 1 8 0"/></svg>',
+  sftp: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+  tunnel: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+  runbook: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>',
+  settings: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>',
+  chevronLeft: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
+};
+
+var VIEWS = [
+  {id:'connections', label:'Connections', fn:'F001'},
+  {id:'sftp', label:'SFTP', fn:'F029'},
+  {id:'tunnel', label:'Tunnel', fn:'F030'},
+  {id:'runbook', label:'Runbook', fn:'F031'},
+  {id:'settings', label:'Settings', fn:'F032'}
+];
+var VIEW_TITLES = {connections:'Connections', sftp:'SFTP', tunnel:'Tunnels', runbook:'Runbooks', settings:'Settings'};
+var VIEW_BADGES = {
+  connections:'<b>PAGE002</b> · F004-F009',
+  sftp:'<b>PAGE004</b> · F029/F038（规划·空占位）',
+  tunnel:'<b>PAGE005</b> · F030/F039（规划·空占位）',
+  runbook:'<b>PAGE006</b> · F031/F040（规划·空占位）',
+  settings:'<b>PAGE007</b> · F032/F034（规划·空占位）'
+};
+var EMPTY_STATES = {
+  sftp:{icon:'sftp', text:'No active SFTP session', hint:'Connect to a server first, then switch to SFTP view'},
+  tunnel:{icon:'tunnel', text:'No tunnels configured', hint:'Create a new tunnel to forward ports'},
+  runbook:{icon:'runbook', text:'No runbooks yet', hint:'Create a runbook to automate tasks'},
+  settings:{icon:'settings', text:'Settings', hint:'Application settings will appear here'}
+};
+
+/* ---------- 场景库（对应 TerminalTab.friendlyError 六映射 + 权限/异常） ---------- */
+var SCENARIOS = {
+  success:     {label:'默认 · 连接成功', tag:'成功态', outcome:'success'},
+  empty:       {label:'空数据 · 无已存连接', tag:'空态', outcome:'success', emptySaved:true},
+  auth:        {label:'认证失败', tag:'失败', outcome:'auth', friendly:'Authentication failed — check username and password', raw:'Connection failed: SSH authentication failed'},
+  refused:     {label:'连接被拒', tag:'失败', outcome:'refused', friendly:'Connection refused — check host and port', raw:'Connection failed: Connection refused (os error 61)'},
+  timeout:     {label:'连接超时（15s）', tag:'失败', outcome:'timeout', friendly:'Connection timed out', raw:'Connection timed out（前端 Promise.race 15s 竞速超时）'},
+  dns:         {label:'DNS 解析失败', tag:'失败', outcome:'dns', friendly:'Host not found — check the address', raw:'Connection failed: failed to lookup address information: Name or service not known'},
+  unreachable: {label:'网络不可达', tag:'失败', outcome:'unreachable', friendly:'Network unreachable', raw:'Connection failed: Network is unreachable (os error 51)'},
+  keychange:   {label:'主机密钥变更（MITM）', tag:'异常', outcome:'keychange', friendly:'Connection failed', raw:'Host key mismatch for host:22 — fingerprint has changed. This may indicate a man-in-the-middle attack.（known_hosts 指纹比对失败）'},
+  nokey:       {label:'无密码且无可用密钥', tag:'权限', outcome:'nokey', friendly:'Connection failed', raw:'Authentication failed: no password provided and no suitable SSH key found（已探测 ~/.ssh/id_ed25519、id_rsa、id_ecdsa）'},
+  remoteclose: {label:'远端断开（连上后断）', tag:'异常', outcome:'remote-close'}
+};
+
+/* ---------- 状态 ---------- */
+var DEFAULT_SAVED = [
+  {id:'conn_01', name:'admin@192.168.1.100', host:'192.168.1.100', port:22, username:'admin', password:'••••••••'},
+  {id:'conn_02', name:'root@10.0.0.15', host:'10.0.0.15', port:22, username:'root', password:'••••••'},
+  {id:'conn_03', name:'deploy@build.example.com', host:'build.example.com', port:2222, username:'deploy', password:''}
+];
+var state = {
+  view:'connections', collapsed:false, panelWidth:260,
+  tabs:[], activeTabId:'', tabCounter:0, connectSeq:0,
+  fontSize:13, paletteOpen:false, fontMenuOpen:false,
+  scenario:'success',
+  saved:[], selectedConnId:'',
+  form:{host:'',port:'22',username:'',password:''},
+  errors:{}, touched:{}, submitting:false,
+  editingTabId:null, editTitle:'',
+  confirmCb:null,
+  toasts:[], toastSeq:0
+};
+
+/* ---------- 工具 ---------- */
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function el(tag, cls, html){var e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e;}
+function nanoid10(){var s='';var chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';for(var i=0;i<10;i++){s+=chars.charAt(Math.floor(Math.random()*chars.length));}return s;}
+
+/* ---------- Toast（对应 lib/toast.ts + ToastContainer.svelte） ---------- */
+function showToast(message,type,duration){
+  type=type||'info'; duration=duration||3000;
+  var id=++state.toastSeq;
+  state.toasts.push({id:id,message:message,type:type,leaving:false});
+  renderToasts();
+  setTimeout(function(){
+    markLeave(id);
+    setTimeout(function(){removeToast(id);},250);
+  },duration);
+}
+function markLeave(id){state.toasts=state.toasts.map(function(t){return t.id===id?{id:t.id,message:t.message,type:t.type,leaving:true}:t;});renderToasts();}
+function removeToast(id){state.toasts=state.toasts.filter(function(t){return t.id!==id;});renderToasts();}
+function dismissToast(id){markLeave(id);setTimeout(function(){removeToast(id);},250);}
+var TOAST_ICONS={success:'✓',error:'✕',info:'ℹ'};
+function renderToasts(){
+  var c=$('toastContainer'); c.innerHTML='';
+  state.toasts.forEach(function(t){
+    var b=el('button','toast toast-'+t.type+(t.leaving?' toast-leaving':''));
+    b.innerHTML='<span class="toast-icon">'+(TOAST_ICONS[t.type]||'ℹ')+'</span><span class="toast-message">'+esc(t.message)+'</span>';
+    b.title='点击关闭（PAGE010 · F022）';
+    b.onclick=function(){dismissToast(t.id);};
+    c.appendChild(b);
+  });
+}
+function demoToast(type){showToast('演示 Toast（'+type+'）——3 秒自动消失，点击立即关闭',type);}
+
+/* ---------- confirm（模拟 window.confirm，对应 ConnectionForm.handleDelete） ---------- */
+function askConfirm(msg,cb){
+  state.confirmCb=cb;
+  $('confirmMsg').textContent=msg;
+  $('confirmOverlay').classList.remove('hidden');
+}
+function closeConfirm(ok){
+  $('confirmOverlay').classList.add('hidden');
+  var cb=state.confirmCb; state.confirmCb=null;
+  if(ok&&cb)cb();
+}
+
+/* ---------- 活动栏（ActivityBar.svelte） ---------- */
+function renderActivityBar(){
+  var bar=$('activityBar'); bar.innerHTML='';
+  VIEWS.forEach(function(v){
+    var b=el('button','act-btn'+(state.view===v.id?' active':''));
+    b.title=v.label;
+    b.setAttribute('aria-label',v.label);
+    b.innerHTML=ICONS[v.id]+'<span class="act-dot">'+(v.id==='connections'?'2':'')+'</span>';
+    b.onclick=function(){handleViewChange(v.id);};
+    bar.appendChild(b);
+  });
+}
+function handleViewChange(view){
+  if(state.view===view){state.collapsed=!state.collapsed;}
+  else{state.view=view;state.collapsed=false;}
+  renderShell();
+}
+
+/* ---------- 侧栏（SidePanel.svelte） ---------- */
+function renderShell(){
+  renderActivityBar();
+  var sp=$('sidePanel');
+  sp.classList.toggle('collapsed',state.collapsed);
+  sp.style.width=state.collapsed?'0px':state.panelWidth+'px';
+  $('panelTitle').textContent=VIEW_TITLES[state.view]||state.view;
+  renderPanelContent();
+  renderTabStrip();
+  renderContent();
+  renderStatusBar();
+}
+
+function emptyStateHtml(icon,text,hint,badge){
+  return '<div class="empty-state">'+(icon?'<div class="empty-icon">'+ICONS[icon]+'</div>':'')
+    +'<p class="empty-text">'+esc(text)+'</p>'
+    +(hint?'<p class="empty-hint">'+esc(hint)+'</p>':'')
+    +(badge?'<span class="page-badge">'+badge+'</span>':'')+'</div>';
+}
+
+function renderPanelContent(){
+  var pc=$('panelContent');
+  if(state.view==='connections'){
+    renderConnectionForm(pc);
+  }else{
+    var es=EMPTY_STATES[state.view];
+    pc.innerHTML=emptyStateHtml(es.icon,es.text,es.hint,VIEW_BADGES[state.view]);
+  }
+}
+
+/* ---------- PAGE002 连接表单（ConnectionForm.svelte） ---------- */
+function validate(){
+  state.errors={};
+  if(!state.form.host.trim())state.errors.host='Host is required';
+  var portNum=parseInt(state.form.port,10);
+  if(!state.form.port||isNaN(portNum)||portNum<1||portNum>65535)state.errors.port='Port must be 1-65535';
+  if(!state.form.username.trim())state.errors.username='Username is required';
+  state.touched={host:true,port:true,username:true};
+  return Object.keys(state.errors).length===0;
+}
+function renderConnectionForm(pc){
+  pc.innerHTML='';
+  var wrap=el('div','connection-form');
+  wrap.setAttribute('role','form');
+  wrap.appendChild(el('span','page-badge',VIEW_BADGES.connections));
+
+  var hasSaved=state.saved.length>0;
+  if(hasSaved){
+    var sg=el('div','form-group');
+    sg.innerHTML='<label for="saved-conn-select">Saved Connections</label>';
+    var sel=document.createElement('select');
+    sel.id='saved-conn-select';
+    sel.innerHTML='<option value="">-- Select --</option>'+state.saved.map(function(c){return '<option value="'+esc(c.id)+'"'+(state.selectedConnId===c.id?' selected':'')+'>'+esc(c.name)+'</option>';}).join('');
+    sel.onchange=function(){selectConnection(sel.value);};
+    sg.appendChild(sel);
+    wrap.appendChild(sg);
+
+    var list=el('div','saved-list');
+    state.saved.forEach(function(c){
+      var item=el('div','saved-item'+(state.selectedConnId===c.id?' selected':''));
+      item.setAttribute('role','button');
+      item.setAttribute('tabindex','0');
+      item.title='Double-click to connect';
+      item.innerHTML='<span class="saved-item-name">'+esc(c.name)+'</span>';
+      var del=el('button','saved-item-delete','×');
+      del.title='Delete connection';
+      del.onclick=function(ev){ev.stopPropagation();handleDelete(c.id,c.name);};
+      item.appendChild(del);
+      item.onclick=function(){selectConnection(c.id);};
+      item.ondblclick=function(ev){ev.stopPropagation();handleDoubleClick(c);};
+      item.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();selectConnection(c.id);}};
+      list.appendChild(item);
+    });
+    wrap.appendChild(list);
+  }
+
+  var row=el('div','form-row');
+  row.appendChild(hostGroup());
+  row.appendChild(portGroup());
+  wrap.appendChild(row);
+  wrap.appendChild(userGroup());
+  wrap.appendChild(passGroup());
+
+  var actions=el('div','form-actions');
+  var btnC=document.createElement('button');
+  btnC.className='btn-primary';btnC.textContent='Connect';
+  btnC.disabled=state.submitting;
+  btnC.onclick=function(){handleConnect();};
+  var btnS=document.createElement('button');
+  btnS.className='btn-secondary';btnS.textContent='Save';
+  btnS.disabled=state.submitting;
+  btnS.onclick=function(){handleSave();};
+  actions.appendChild(btnC);actions.appendChild(btnS);
+  wrap.appendChild(actions);
+
+  wrap.onkeydown=function(ev){
+    if(ev.key==='Enter'&&!ev.shiftKey&&!ev.ctrlKey&&!ev.metaKey){ev.preventDefault();handleConnect();}
+  };
+  pc.appendChild(wrap);
+}
+function hostGroup(){
+  var g=el('div','form-group');
+  g.innerHTML='<label for="conn-host">Host</label>';
+  var i=document.createElement('input');
+  i.id='conn-host';i.type='text';i.placeholder='e.g. 192.168.1.100';i.value=state.form.host;
+  i.oninput=function(){state.form.host=i.value;};
+  i.onblur=function(){state.touched.host=true;refreshErrors();};
+  g.appendChild(i);
+  var err=errSpan('host');g.appendChild(err);
+  return g;
+}
+function portGroup(){
+  var g=el('div','form-group');
+  g.innerHTML='<label for="conn-port">Port</label>';
+  var i=document.createElement('input');
+  i.id='conn-port';i.type='number';i.value=state.form.port;
+  i.oninput=function(){state.form.port=i.value;};
+  i.onblur=function(){state.touched.port=true;refreshErrors();};
+  g.appendChild(i);
+  g.appendChild(errSpan('port'));
+  return g;
+}
+function userGroup(){
+  var g=el('div','form-group');
+  g.innerHTML='<label for="conn-user">Username</label>';
+  var i=document.createElement('input');
+  i.id='conn-user';i.type='text';i.placeholder='e.g. admin';i.value=state.form.username;
+  i.oninput=function(){state.form.username=i.value;};
+  i.onblur=function(){state.touched.username=true;refreshErrors();};
+  g.appendChild(i);
+  g.appendChild(errSpan('username'));
+  return g;
+}
+function passGroup(){
+  var g=el('div','form-group');
+  g.innerHTML='<label for="conn-pass">Password</label>';
+  var i=document.createElement('input');
+  i.id='conn-pass';i.type='password';i.value=state.form.password;
+  i.title='密码输入（F026：保存后以 AES-256-GCM 加密落盘）';
+  i.oninput=function(){state.form.password=i.value;};
+  g.appendChild(i);
+  return g;
+}
+function errSpan(key){
+  var s=el('span','field-error','&nbsp;');
+  s.dataset.err=key;
+  return s;
+}
+function refreshErrors(){
+  var form=document.querySelector('.connection-form');
+  if(!form)return;
+  ['host','port','username'].forEach(function(k){
+    var s=form.querySelector('.field-error[data-err="'+k+'"]');
+    if(s)s.innerHTML=(state.touched[k]&&state.errors[k])?esc(state.errors[k]):'&nbsp;';
+  });
+}
+function handleConnect(){
+  if(!validate()){renderPanelContent();refreshErrors();return;}
+  doConnect({host:state.form.host.trim(),port:parseInt(state.form.port,10),username:state.form.username.trim(),password:state.form.password||undefined});
+}
+function handleSave(){
+  if(!validate()){renderPanelContent();refreshErrors();return;}
+  if(state.submitting)return;
+  state.submitting=true;renderPanelContent();
+  var name=state.form.username.trim()+'@'+state.form.host.trim();
+  var dup=state.saved.find(function(c){return c.name===name||(c.host===state.form.host.trim()&&c.port===parseInt(state.form.port,10)&&c.username===state.form.username.trim());});
+  if(dup){
+    showToast('Connection "'+name+'" already exists','error');
+    state.submitting=false;renderPanelContent();return;
+  }
+  setTimeout(function(){
+    state.saved=state.saved.concat([{id:'conn_'+nanoid10(),name:name,host:state.form.host.trim(),port:parseInt(state.form.port,10),username:state.form.username.trim(),password:state.form.password||'••••••'}]);
+    showToast('Connection "'+name+'" saved（密码已 AES-256-GCM 加密写入 ~/.termforge/connections.json，权限 0600）','success');
+    state.submitting=false;
+    renderPanelContent();
+  },400);
+}
+function handleDelete(id,name){
+  askConfirm('Delete connection "'+name+'"?',function(){
+    var idx=state.saved.findIndex(function(c){return c.id===id;});
+    state.saved=state.saved.filter(function(c){return c.id!==id;});
+    if(state.selectedConnId===id)state.selectedConnId='';
+    showToast('Deleted "'+name+'"','success');
+    renderPanelContent();
+    if(idx>=0&&idx<state.saved.length){/* no-op */}
+  });
+}
+function selectConnection(id){
+  var conn=state.saved.find(function(c){return c.id===id;});
+  if(conn){
+    state.form.host=conn.host;
+    state.form.port=String(conn.port);
+    state.form.username=conn.username;
+    state.form.password=conn.password||'';
+    state.selectedConnId=id;
+    state.errors={};state.touched={};
+    renderPanelContent();
+  }
+}
+function handleDoubleClick(conn){
+  selectConnection(conn.id);
+  doConnect({host:conn.host,port:conn.port,username:conn.username,password:conn.password});
+}
+function focusHost(){
+  if(state.view!=='connections'||state.collapsed){state.view='connections';state.collapsed=false;renderShell();}
+  renderPanelContent();
+  var h=$('conn-host');
+  if(h){h.focus();h.select();}
+}
+
+/* ---------- TabStrip（TabStrip.svelte + App.svelte） ---------- */
+var STATUS_COLORS={idle:'var(--fg-secondary)',connecting:'var(--warning)',connected:'var(--success)',error:'var(--error)',closed:'var(--fg-secondary)'};
+var STATUS_FILLED={idle:false,connecting:false,connected:true,error:true,closed:false};
+var STATUS_LABELS={idle:'Idle',connecting:'Connecting...',connected:'Connected',error:'Error',closed:'Disconnected'};
+
+function renderTabStrip(){
+  var ts=$('tabStrip');ts.innerHTML='';
+  state.tabs.forEach(function(tab){
+    var t=el('div','tab'+(tab.id===state.activeTabId?' active':''));
+    t.setAttribute('role','tab');
+    t.title=state.editingTabId!==tab.id?(tab.title+' (double-click to rename)'):'';
+    var dot=el('span','status-dot'+(STATUS_FILLED[tab.status]?' filled':'')+(tab.status==='connecting'?' connecting':''),'●');
+    dot.style.color=STATUS_COLORS[tab.status];
+    t.appendChild(dot);
+    if(state.editingTabId===tab.id){
+      var inp=document.createElement('input');
+      inp.className='tab-rename-input';inp.type='text';inp.value=state.editTitle;
+      inp.oninput=function(){state.editTitle=inp.value;};
+      inp.onkeydown=function(ev){
+        if(ev.key==='Enter'){ev.preventDefault();finishRename(tab.id);}
+        else if(ev.key==='Escape'){ev.preventDefault();cancelRename();}
+        ev.stopPropagation();
+      };
+      inp.onblur=function(){finishRename(tab.id);};
+      inp.onclick=function(ev){ev.stopPropagation();};
+      t.appendChild(inp);
+      setTimeout(function(){inp.focus();inp.select();},0);
+    }else{
+      t.appendChild(el('span','tab-title',esc(tab.title)));
+    }
+    var close=el('button','tab-close','×');
+    close.title='Close tab';
+    close.onclick=function(ev){ev.stopPropagation();closeTab(tab.id);};
+    t.appendChild(close);
+    t.onclick=function(){activateTab(tab.id);};
+    t.ondblclick=function(ev){ev.stopPropagation();startRename(tab.id,tab.title);};
+    ts.appendChild(t);
+  });
+  var plus=el('button','new-tab-btn','+');
+  plus.title='New connection (Ctrl+T)';
+  plus.onclick=function(){handleNewTab();};
+  ts.appendChild(plus);
+}
+function startRename(tabId,title){state.editingTabId=tabId;state.editTitle=title;renderTabStrip();}
+function finishRename(tabId){
+  var trimmed=state.editTitle.trim();
+  if(trimmed&&state.editingTabId){
+    var tab=state.tabs.find(function(t){return t.id===tabId;});
+    if(tab)tab.title=trimmed;
+  }
+  state.editingTabId=null;state.editTitle='';
+  renderTabStrip();renderStatusBar();
+}
+function cancelRename(){state.editingTabId=null;state.editTitle='';renderTabStrip();}
+function handleNewTab(){
+  state.view='connections';state.collapsed=false;
+  renderShell();focusHost();
+}
+function createTab(conn){
+  state.tabCounter++;
+  var tabId='tab_'+state.tabCounter;
+  state.tabs=state.tabs.concat([{id:tabId,title:conn.username+'@'+conn.host,conn:conn,sessionId:null,status:'idle',lines:[]}]);
+  state.activeTabId=tabId;
+  renderShell();
+  return state.tabs[state.tabs.length-1];
+}
+function closeTab(tabId){
+  var tab=state.tabs.find(function(t){return t.id===tabId;});
+  var prevIndex=state.tabs.findIndex(function(t){return t.id===tabId;});
+  /* 模拟 session_close：后端失败也照样移除 Tab（已知缺陷 ③，如实保留语义） */
+  state.tabs=state.tabs.filter(function(t){return t.id!==tabId;});
+  if(state.activeTabId===tabId){
+    var adjacent=state.tabs[Math.min(prevIndex,state.tabs.length-1)];
+    state.activeTabId=adjacent?adjacent.id:'';
+  }
+  if(tab&&tab.sessionId){/* session_close(tab.sessionId) */}
+  renderShell();
+}
+function activateTab(tabId){
+  state.activeTabId=tabId;
+  renderTabStrip();renderContent();renderStatusBar();
+  var inp=document.querySelector('.terminal-pane.active .term-input');
+  if(inp)inp.focus();
+}
+function switchTab(direction){
+  if(state.tabs.length>1&&state.activeTabId){
+    var idx=state.tabs.findIndex(function(t){return t.id===state.activeTabId;});
+    if(idx!==-1){
+      var next=(idx+direction+state.tabs.length)%state.tabs.length;
+      activateTab(state.tabs[next].id);
+    }
+  }
+}
+function gotoTabNum(n){
+  if(state.tabs.length>0){
+    var index=Math.min(n-1,state.tabs.length-1);
+    activateTab(state.tabs[index].id);
+  }
+}
+
+/* ---------- PAGE003 终端（TerminalTab.svelte） ---------- */
+function tabLine(tab,text,cls){tab.lines.push({text:text,cls:cls||''});}
+function doConnect(conn){
+  var tab=createTab(conn);
+  connectTab(tab);
+}
+function connectTab(tab){
+  var seq=++state.connectSeq;
+  tab.status='connecting';tab.sessionId=null;
+  tab.lines=[];
+  tabLine(tab,'Connecting...','');
+  renderShell();
+  var outcome=SCENARIOS[state.scenario].outcome;
+  var delay=outcome==='timeout'?2600:1300;
+  setTimeout(function(){
+    if(seq!==state.connectSeq||!state.tabs.find(function(t){return t.id===tab.id;}))return;
+    if(outcome==='success'||outcome==='remote-close'){
+      tab.sessionId='ssh_'+nanoid10();
+      tab.status='connected';
+      tab.lines=[];
+      writeBanner(tab);
+      renderShell();
+      if(outcome==='remote-close'){
+        setTimeout(function(){
+          if(!state.tabs.find(function(t){return t.id===tab.id;})||tab.status!=='connected')return;
+          tabLine(tab,'','' );
+          tabLine(tab,'[status] closed: Connection closed by remote','status');
+          tab.status='closed';tab.sessionId=null;
+          renderShell();
+          showToast('会话 '+tab.title+' 已被远端关闭（terminal:status closed）','info');
+        },2600);
+      }
+      return;
+    }
+    var sc=SCENARIOS[state.scenario];
+    tab.status='error';tab.sessionId=null;
+    tab.lines=[];
+    tabLine(tab,'[error] '+sc.friendly,'err');
+    tabLine(tab,'','' );
+    tabLine(tab,'Press Ctrl+R or click Reconnect to retry. （注：Ctrl+R 快捷键未注册，为死文案——请点击 Reconnect）','dim');
+    tabLine(tab,'[后端原始错误] '+sc.raw,'dim');
+    renderShell();
+  },delay);
+}
+function writeBanner(tab){
+  var u=tab.conn.username;
+  tabLine(tab,'Welcome to Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-88-generic x86_64)','');
+  tabLine(tab,'','');
+  tabLine(tab,' * Documentation:  https://help.ubuntu.com','');
+  tabLine(tab,' * Management:     https://landscape.canonical.com','');
+  tabLine(tab,' * Support:        https://ubuntu.com/advantage','');
+  tabLine(tab,'','');
+  tabLine(tab,'  System information as of Wed Sep  2 21:14:05 UTC 2026','');
+  tabLine(tab,'','');
+  tabLine(tab,'  System load:  0.08              Processes:             112');
+  tabLine(tab,'  Usage of /:   42.1% of 48.83GB   Users logged in:       1');
+  tabLine(tab,'  Memory usage: 31%                IPv4 address for eth0: 10.0.0.15');
+  tabLine(tab,'  Swap usage:   0%');
+  tabLine(tab,'','');
+  tabLine(tab,'Last login: Tue Sep  1 09:32:17 2026 from 192.168.1.23','');
+  tabLine(tab,'（会话 '+u+'@'+tab.conn.host+' 已连接 · session_id 模拟 · PTY xterm-256color）','dim');
+}
+function termCommandResponse(cmd,tab){
+  var u=tab.conn.username;
+  var prompt=u+'@'+(tab.conn.host.split('.')[0])+':~$';
+  tabLine(tab,prompt+' '+cmd,'');
+  switch(cmd){
+    case 'ls':tabLine(tab,'deploy.sh  logs  nginx.conf  src','');break;
+    case 'pwd':tabLine(tab,'/home/'+u,'');break;
+    case 'whoami':tabLine(tab,u,'');break;
+    case 'uptime':tabLine(tab,' 21:14:05 up 13 days,  4:22,  1 user,  load average: 0.08, 0.12, 0.09','');break;
+    case 'df -h':
+      tabLine(tab,'Filesystem      Size  Used Avail Use% Mounted on','');
+      tabLine(tab,'/dev/sda1        49G   21G   26G  42% /','');
+      tabLine(tab,'tmpfs           2.0G     0  2.0G   0% /dev/shm','');
+      break;
+    case 'clear':tab.lines=[];break;
+    case 'exit':
+      tabLine(tab,'logout','dim');
+      tabLine(tab,'[status] closed: Connection closed by remote','status');
+      tab.status='closed';tab.sessionId=null;
+      renderShell();
+      return false;
+    default:
+      if(cmd.indexOf('echo ')===0){tabLine(tab,cmd.slice(5),'');}
+      else{tabLine(tab,'bash: '+cmd.split(' ')[0]+': command not found','');}
+  }
+  return true;
+}
+function renderContent(){
+  var ca=$('contentArea');ca.innerHTML='';
+  if(state.tabs.length===0){
+    ca.innerHTML=emptyStateHtml('','No active terminals','Use the sidebar to fill in SSH details and click Connect. Each connection opens a new tab.','<b>PAGE009</b> · 终端区空态');
+    return;
+  }
+  state.tabs.forEach(function(tab){
+    var pane=el('div','terminal-pane'+(tab.id===state.activeTabId?' active':''));
+    var body=el('div','term-body');
+    body.style.fontSize=state.fontSize+'px';
+    tab.lines.forEach(function(l){
+      body.appendChild(el('div','term-line '+l.cls,esc(l.text)||'&nbsp;'));
+    });
+    pane.appendChild(body);
+    pane.appendChild(el('span','page-badge','<b>PAGE003</b> · F014-F025'));
+    if(tab.status==='connected'){
+      var row=el('div','term-input-row');
+      var prompt=el('span','term-prompt',esc(tab.conn.username+'@'+tab.conn.host.split('.')[0]+':~$'));
+      var inp=document.createElement('input');
+      inp.className='term-input';
+      inp.placeholder='输入命令后回车（ls / pwd / whoami / uptime / df -h / echo hi / exit / clear）';
+      inp.onkeydown=function(ev){
+        ev.stopPropagation();
+        if(ev.key==='Enter'){
+          var v=inp.value;inp.value='';
+          if(v.trim()){termCommandResponse(v,tab);}
+          renderContent();
+          var nb=pane.querySelector('.term-body');
+          if(nb)nb.scrollTop=nb.scrollHeight;
+          var ni=pane.querySelector('.term-input');
+          if(ni)ni.focus();
+        }
+      };
+      row.appendChild(prompt);row.appendChild(inp);
+      pane.appendChild(row);
+    }
+    if(tab.status==='error'||tab.status==='closed'){
+      var bar=el('div','reconnect-bar');
+      var rb=document.createElement('button');
+      rb.className='reconnect-btn';rb.textContent='Reconnect';
+      rb.setAttribute('aria-label','Reconnect');
+      rb.onclick=function(){connectTab(tab);};
+      bar.appendChild(rb);
+      pane.appendChild(bar);
+    }
+    ca.appendChild(pane);
+  });
+  var activeBody=ca.querySelector('.terminal-pane.active .term-body');
+  if(activeBody)activeBody.scrollTop=activeBody.scrollHeight;
+  updatePtySize();
+}
+
+/* ---------- StatusBar（StatusBar.svelte） ---------- */
+function renderStatusBar(){
+  var sl=$('statusLeft');sl.innerHTML='';
+  var tab=state.tabs.find(function(t){return t.id===state.activeTabId;});
+  if(tab){
+    var dot=el('span','status-dot','●');
+    dot.style.color=STATUS_COLORS[tab.status];dot.style.fontSize='8px';
+    sl.appendChild(dot);
+    sl.appendChild(el('span','status-text',esc(STATUS_LABELS[tab.status]+' to '+tab.title)));
+  }else{
+    sl.appendChild(el('span','status-text status-idle','No active session'));
+  }
+  $('fontBtn').textContent=state.fontSize+'px mono ▾';
+  renderFontMenu();
+}
+function renderFontMenu(){
+  var fm=$('fontMenu');fm.innerHTML='';
+  [10,11,12,13,14,15,16,18,20].forEach(function(size){
+    var b=el('button','font-option'+(size===state.fontSize?' active':''),size+'px');
+    b.onclick=function(ev){
+      ev.stopPropagation();
+      state.fontSize=size;state.fontMenuOpen=false;
+      renderStatusBar();renderContent();
+    };
+    fm.appendChild(b);
+  });
+  fm.classList.toggle('hidden',!state.fontMenuOpen);
+}
+function updatePtySize(){
+  var body=document.querySelector('.terminal-pane.active .term-body');
+  if(!body){$('ptySize').textContent='—×—';return;}
+  var w=body.clientWidth-24,h=Math.max(body.clientHeight,100);
+  var cols=Math.max(20,Math.floor(w/(state.fontSize*0.62)));
+  var rows=Math.max(6,Math.floor(h/(state.fontSize*1.45)));
+  $('ptySize').textContent=cols+'×'+rows;
+}
+
+/* ---------- PAGE008 命令面板（CommandPalette.svelte 占位） ---------- */
+function openPalette(){
+  state.paletteOpen=true;
+  $('paletteBackdrop').classList.remove('hidden');
+  setTimeout(function(){$('paletteInput').focus();},0);
+}
+function closePalette(){
+  state.paletteOpen=false;
+  $('paletteBackdrop').classList.add('hidden');
+}
+function togglePalette(){state.paletteOpen?closePalette():openPalette();}
+
+/* ---------- 快捷键（App.svelte handleKeydown） ---------- */
+function handleKeydown(e){
+  if(e.key==='Escape'){
+    if(state.paletteOpen){closePalette();return;}
+    if(!$('confirmOverlay').classList.contains('hidden')){closeConfirm(false);return;}
+    if(state.editingTabId){cancelRename();return;}
+    if(state.fontMenuOpen){state.fontMenuOpen=false;renderFontMenu();return;}
+  }
+  var target=e.target;
+  if(target&&(target.classList&&target.classList.contains('term-input')))return;
+  if(target instanceof HTMLInputElement||target instanceof HTMLTextAreaElement||target instanceof HTMLSelectElement)return;
+  var mod=e.ctrlKey||e.metaKey;
+  if(!mod)return;
+  if(e.shiftKey){
+    if(e.key==='Tab'){e.preventDefault();switchTab(-1);return;}
+    if(e.key==='P'||e.key==='p'){e.preventDefault();togglePalette();return;}
+    if(e.key==='N'||e.key==='n'){e.preventDefault();focusHost();return;}
+    return;
+  }
+  if(e.altKey)return;
+  if(e.key==='Tab'){e.preventDefault();switchTab(1);return;}
+  if(e.key==='t'||e.key==='T'){e.preventDefault();handleNewTab();return;}
+  if(e.key==='w'||e.key==='W'){e.preventDefault();if(state.activeTabId)closeTab(state.activeTabId);return;}
+  if(e.key==='\\'){e.preventDefault();state.collapsed=!state.collapsed;renderShell();return;}
+  var num=parseInt(e.key,10);
+  if(num>=1&&num<=9){e.preventDefault();gotoTabNum(num);return;}
+}
+
+/* ---------- 侧栏拖拽（SidePanel.onDragStart，180-400px 钳制） ---------- */
+function initDrag(){
+  var handle=$('dragHandle');
+  var startX=0,startWidth=0,min=180,max=400;
+  function onMove(ev){
+    var delta=ev.clientX-startX;
+    state.panelWidth=Math.min(max,Math.max(min,startWidth+delta));
+    var sp=$('sidePanel');
+    sp.classList.add('dragging');
+    sp.style.width=state.panelWidth+'px';
+  }
+  function onUp(){
+    window.removeEventListener('mousemove',onMove);
+    window.removeEventListener('mouseup',onUp);
+    $('sidePanel').classList.remove('dragging');
+    document.body.style.userSelect='';
+    document.body.style.cursor='';
+  }
+  handle.addEventListener('mousedown',function(e){
+    e.preventDefault();
+    startX=e.clientX;startWidth=state.panelWidth;
+    document.body.style.userSelect='none';
+    document.body.style.cursor='col-resize';
+    window.addEventListener('mousemove',onMove);
+    window.addEventListener('mouseup',onUp);
+  });
+}
+
+/* ---------- 窗口缩放适配 ---------- */
+function fitWindow(){
+  var wrap=$('windowWrap');
+  var availW=wrap.clientWidth-24,availH=wrap.clientHeight-24;
+  var scale=Math.min(1,availW/1200,availH/800);
+  $('windowFrame').style.transform='scale('+scale+')';
+}
+
+/* ---------- 评审面板 ---------- */
+function renderScenarioList(){
+  var box=$('scenarioList');box.innerHTML='';
+  Object.keys(SCENARIOS).forEach(function(key){
+    var sc=SCENARIOS[key];
+    var b=el('button','scenario-item'+(state.scenario===key?' active':''));
+    b.innerHTML=esc(sc.label)+'<span class="tag">'+esc(sc.tag)+'</span>';
+    b.onclick=function(){applyScenario(key);};
+    box.appendChild(b);
+  });
+}
+function applyScenario(key){
+  state.scenario=key;
+  var sc=SCENARIOS[key];
+  state.saved=sc.emptySaved?[]:DEFAULT_SAVED.map(function(c){return Object.assign({},c);});
+  state.selectedConnId='';
+  state.view='connections';state.collapsed=false;
+  renderScenarioList();renderShell();
+  if(sc.emptySaved)showToast('场景切换：空数据——无已存连接（connection_list 返回空）。已开 Tab 保留，可继续用 Reconnect 演示','info');
+  else if(sc.outcome!=='success'&&sc.outcome!=='remote-close')showToast('场景切换：'+sc.label+'——下次 Connect / Reconnect 将失败','info');
+  else if(sc.outcome==='remote-close')showToast('场景切换：远端断开——连接成功后约 2.6 秒远端关闭','info');
+  else showToast('场景切换：默认（连接成功）','info');
+}
+var SHORTCUTS=[
+  {label:'Ctrl+T',fn:function(){handleNewTab();}},
+  {label:'Ctrl+W',fn:function(){if(state.activeTabId)closeTab(state.activeTabId);}},
+  {label:'Ctrl+1',fn:function(){gotoTabNum(1);}},
+  {label:'Ctrl+2',fn:function(){gotoTabNum(2);}},
+  {label:'Ctrl+3',fn:function(){gotoTabNum(3);}},
+  {label:'Ctrl+Tab',fn:function(){switchTab(1);}},
+  {label:'Ctrl+⇧+Tab',fn:function(){switchTab(-1);}},
+  {label:'Ctrl+\\',fn:function(){state.collapsed=!state.collapsed;renderShell();}},
+  {label:'Ctrl+⇧+P',fn:function(){togglePalette();}},
+  {label:'Ctrl+⇧+N',fn:function(){focusHost();}},
+  {label:'Esc',fn:function(){if(state.paletteOpen)closePalette();else if(!$('confirmOverlay').classList.contains('hidden'))closeConfirm(false);}}
+];
+function renderShortcuts(){
+  var row=$('shortcutRow');row.innerHTML='';
+  SHORTCUTS.forEach(function(s){
+    var b=el('button','sim-btn',s.label);
+    b.onclick=s.fn;
+    row.appendChild(b);
+  });
+}
+var PAGE_NAV=[
+  {pid:'PAGE001',name:'应用主工作台',fn:'F001-F003/F010-F013',go:function(){state.view='connections';renderShell();}},
+  {pid:'PAGE002',name:'连接中心（侧栏）',fn:'F004-F009',go:function(){state.view='connections';state.collapsed=false;renderShell();focusHost();}},
+  {pid:'PAGE003',name:'终端会话页',fn:'F014-F025',go:function(){if(!state.tabs.length){showToast('请先在连接中心点击 Connect 创建终端 Tab','info');state.view='connections';state.collapsed=false;renderShell();}else{activateTab(state.activeTabId||state.tabs[0].id);}}},
+  {pid:'PAGE004',name:'SFTP 视图（空占位）',fn:'F029/F038',go:function(){state.view='sftp';state.collapsed=false;renderShell();}},
+  {pid:'PAGE005',name:'隧道视图（空占位）',fn:'F030/F039',go:function(){state.view='tunnel';state.collapsed=false;renderShell();}},
+  {pid:'PAGE006',name:'Runbook 视图（空占位）',fn:'F031/F040',go:function(){state.view='runbook';state.collapsed=false;renderShell();}},
+  {pid:'PAGE007',name:'设置视图（空占位）',fn:'F032/F034',go:function(){state.view='settings';state.collapsed=false;renderShell();}},
+  {pid:'PAGE008',name:'命令面板（占位）',fn:'F033',go:function(){openPalette();}},
+  {pid:'PAGE009',name:'终端区空态',fn:'—',go:function(){state.tabs=[];state.activeTabId='';renderShell();showToast('已关闭全部 Tab（模拟），呈现 PAGE009 空态','info');}},
+  {pid:'PAGE010',name:'Toast 通知浮层',fn:'F022',go:function(){demoToast('success');}}
+];
+function renderPageNav(){
+  var box=$('pageNav');box.innerHTML='';
+  PAGE_NAV.forEach(function(p){
+    var b=el('button','page-nav-item');
+    b.innerHTML='<span><span class="pid">'+p.pid+'</span>'+esc(p.name)+'</span><span class="pfn">'+esc(p.fn)+'</span>';
+    b.onclick=p.go;
+    box.appendChild(b);
+  });
+}
+
+/* ---------- 初始化 ---------- */
+function init(){
+  state.saved=DEFAULT_SAVED.map(function(c){return Object.assign({},c);});
+  $('collapseBtn').innerHTML=ICONS.chevronLeft;
+  $('collapseBtn').onclick=function(){state.collapsed=!state.collapsed;renderShell();};
+  $('fontBtn').onclick=function(ev){
+    ev.stopPropagation();
+    state.fontMenuOpen=!state.fontMenuOpen;
+    renderFontMenu();
+  };
+  document.addEventListener('mousedown',function(ev){
+    if(state.fontMenuOpen&&!$('fontArea').contains(ev.target)){state.fontMenuOpen=false;renderFontMenu();}
+  });
+  $('paletteBackdrop').addEventListener('click',function(ev){
+    if(ev.target===$('paletteBackdrop'))closePalette();
+  });
+  $('paletteInput').addEventListener('keydown',function(ev){
+    if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();closePalette();}
+  });
+  $('confirmCancel').onclick=function(){closeConfirm(false);};
+  $('confirmOk').onclick=function(){closeConfirm(true);};
+  window.addEventListener('resize',function(){fitWindow();updatePtySize();});
+  document.addEventListener('keydown',handleKeydown);
+  initDrag();
+  renderScenarioList();renderShortcuts();renderPageNav();
+  renderShell();
+  fitWindow();
+  showToast('原型已加载：TermForge 桌面窗口画框（1200×800 模拟）。左侧为应用，右侧为评审面板。','info',4200);
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>

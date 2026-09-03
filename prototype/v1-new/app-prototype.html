@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TermForge V1 新版原型（PRD + P4 B类优化 + Design System）</title>
+<style>
+/* ============================================================
+   TermForge V1 原型 — 设计令牌
+   来源：src-ui/src/app.css（Tokyo Night，逐值对齐 docs/07_design_system/TOKEN.md）
+   标注【V1建议】的为 docs/07_design_system/TOKEN.md §4 建议新增的专用圆角令牌
+   ============================================================ */
+:root{
+  /* Color（app.css L4-17） */
+  --bg-darker:#16161e; --bg-primary:#1a1b26; --bg-hover:#1f2335; --bg-secondary:#24283b; --bg-active:#343b58;
+  --fg-primary:#a9b1d6; --fg-secondary:#565f89;
+  --accent:#7aa2f7; --accent-hover:#5d87e5; --success:#9ece6a; --warning:#e0af68; --error:#f7768e;
+  --border:#414868;
+  --overlay-backdrop:rgba(0,0,0,.6);
+  --shadow-dropdown:0 4px 12px rgba(0,0,0,.3); --shadow-modal:0 8px 32px rgba(0,0,0,.4);
+  /* Spacing（app.css L27-32） */
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;
+  /* Typography（app.css L35-45） */
+  --font-mono:'JetBrains Mono','Fira Code','Cascadia Code','SF Mono','Consolas','Menlo',monospace;
+  --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --text-xs:11px;--text-sm:13px;--text-base:14px;--text-lg:16px;--text-xl:20px;--line-height:1.5;
+  --terminal-font-size:13px;
+  /* Layout（app.css L48-53） */
+  --activity-bar-width:48px;--side-panel-width:260px;--side-panel-min:180px;--side-panel-max:400px;
+  --tab-strip-height:36px;--status-bar-height:24px;
+  /* Radius【V1建议：docs/07_design_system/TOKEN.md §4 —— 旧项目借用间距令牌作圆角，V1 设立专用令牌】 */
+  --radius-sm:2px;--radius-md:4px;--radius-lg:8px;--radius-full:9999px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{font-family:var(--font-sans);font-size:var(--text-sm);color:var(--fg-primary);background:#0d0d12;-webkit-font-smoothing:antialiased}
+
+/* ========== 舞台：桌面窗口画框 + 评审面板 ========== */
+#stage{display:flex;width:100%;height:100vh;gap:0}
+#windowWrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+#reviewPanel{width:340px;flex-shrink:0;height:100%;overflow-y:auto;background:#12121a;border-left:1px solid var(--border);padding:var(--space-3);font-size:var(--text-xs)}
+#reviewPanel h1{font-size:var(--text-base);color:var(--accent);margin-bottom:2px}
+#reviewPanel .sub{color:var(--fg-secondary);margin-bottom:var(--space-3);line-height:1.5}
+#reviewPanel h2{font-size:var(--text-sm);color:var(--fg-primary);margin:var(--space-4) 0 var(--space-2);border-bottom:1px solid var(--border);padding-bottom:var(--space-1)}
+#reviewPanel section{margin-bottom:var(--space-2)}
+.scenario-item{display:block;width:100%;text-align:left;background:transparent;border:1px solid transparent;color:var(--fg-primary);padding:5px var(--space-2);border-radius:var(--radius-md);cursor:pointer;font-size:var(--text-xs);font-family:inherit;margin-bottom:2px}
+.scenario-item:hover{background:var(--bg-hover)}
+.scenario-item.active{background:var(--bg-active);color:#fff;border-color:var(--accent)}
+.scenario-item .tag{float:right;color:var(--fg-secondary);font-size:10px}
+.scenario-item.active .tag{color:var(--accent)}
+.btnrow{display:flex;flex-wrap:wrap;gap:var(--space-1);margin-bottom:var(--space-1)}
+.sim-btn{background:var(--bg-secondary);border:1px solid var(--border);color:var(--fg-primary);border-radius:var(--radius-md);padding:4px var(--space-2);cursor:pointer;font-size:var(--text-xs);font-family:var(--font-mono)}
+.sim-btn:hover{background:var(--bg-hover);border-color:var(--accent)}
+.page-nav-item{display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;border:none;color:var(--fg-primary);padding:4px var(--space-2);border-radius:var(--radius-md);cursor:pointer;font-size:var(--text-xs);font-family:inherit;text-align:left}
+.page-nav-item:hover{background:var(--bg-hover)}
+.page-nav-item .pid{color:var(--accent);font-family:var(--font-mono);flex-shrink:0;margin-right:var(--space-2)}
+.page-nav-item .pfn{color:var(--fg-secondary);font-size:10px}
+.note{color:var(--fg-secondary);line-height:1.6;margin:var(--space-1) 0}
+.note b{color:var(--fg-primary);font-weight:600}
+.check-list li{list-style:none;line-height:1.7;color:var(--fg-primary)}
+.check-list li::before{content:'✅ ';font-size:10px}
+.check-list li .src{color:var(--fg-secondary);font-size:10px}
+.c-list li{list-style:none;line-height:1.7;color:var(--fg-secondary)}
+.c-list li b{color:var(--warning);font-weight:600}
+.kv{font-family:var(--font-mono);font-size:10px;color:var(--fg-secondary);background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-2);line-height:1.7;white-space:pre;overflow-x:auto;margin:var(--space-1) 0}
+.kv .hl{color:var(--success)} .kv .warn{color:var(--warning)}
+
+/* ========== 桌面窗口画框（1200×800，模拟 Tauri 主窗口，tauri.conf.json） ========== */
+#windowFrame{width:1200px;height:800px;background:var(--bg-primary);border:1px solid #2a2a3a;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.7);transform-origin:center center;position:relative}
+.titlebar{height:34px;flex-shrink:0;background:var(--bg-darker);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--space-3);gap:var(--space-2);user-select:none}
+.traffic{display:flex;gap:7px;margin-right:var(--space-3)}
+.traffic span{width:12px;height:12px;border-radius:50%;display:inline-block}
+.traffic .r{background:#f7768e}.traffic .y{background:#e0af68}.traffic .g{background:#9ece6a}
+.titlebar .title{flex:1;text-align:center;color:var(--fg-secondary);font-size:var(--text-xs);letter-spacing:.06em}
+.titlebar .winbadge{font-size:10px;color:var(--fg-secondary);background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-full);padding:2px 8px;font-family:var(--font-mono)}
+
+/* ========== PAGE001 应用外壳（ActivityBar/SidePanel/TabStrip/内容区/StatusBar） ========== */
+.app{flex:1;display:flex;overflow:hidden;position:relative}
+#activityBar{width:var(--activity-bar-width);display:flex;flex-direction:column;align-items:center;padding:var(--space-2) 0;background:var(--bg-darker);border-right:1px solid var(--border);flex-shrink:0}
+.act-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);cursor:pointer;border-radius:var(--radius-md);margin-bottom:var(--space-1);position:relative;transition:color .15s,background .15s}
+.act-btn svg{width:22px;height:22px}
+.act-btn:hover{color:var(--fg-primary);background:var(--bg-hover)}
+.act-btn.active{color:var(--accent);background:var(--bg-active)}
+.act-btn.active::before{content:'';position:absolute;left:-4px;top:8px;bottom:8px;width:3px;background:var(--accent);border-radius:2px}
+
+#sidePanel{height:100%;position:relative;background:var(--bg-secondary);border-right:1px solid var(--border);flex-shrink:0;overflow:hidden;transition:width .15s ease}
+#sidePanel.dragging{transition:none}
+#sidePanel .panel-inner{display:flex;flex-direction:column;height:100%;min-width:var(--side-panel-min)}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border);background:var(--bg-darker);flex-shrink:0}
+.panel-title{font-size:var(--text-sm);font-weight:600;color:var(--fg-secondary);text-transform:uppercase;letter-spacing:.05em}
+.collapse-btn{width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);cursor:pointer;border-radius:var(--radius-md);padding:0}
+.collapse-btn svg{width:14px;height:14px;transition:transform .15s}
+.collapse-btn:hover{color:var(--fg-primary);background:var(--bg-hover)}
+#sidePanel.collapsed .collapse-btn svg{transform:rotate(180deg)}
+.panel-content{flex:1;overflow-y:auto;padding:var(--space-3);position:relative}
+.drag-handle{position:absolute;top:0;right:0;bottom:0;width:4px;cursor:col-resize;background:transparent;transition:background .15s;z-index:5}
+.drag-handle:hover{background:var(--accent)}
+
+/* 页面编号角标（编号+来源） */
+.page-badge{position:absolute;top:6px;right:8px;font-size:9px;font-family:var(--font-mono);color:var(--fg-secondary);background:rgba(22,22,30,.85);border:1px solid var(--border);border-radius:var(--radius-full);padding:1px 7px;z-index:20;pointer-events:none;white-space:nowrap}
+.page-badge b{color:var(--accent);font-weight:600}
+
+/* ========== PAGE002 连接中心：主机卡（B-01/B-07） + 认证表单（B-09） ========== */
+.list-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--space-2);color:var(--fg-secondary);font-size:var(--text-xs)}
+.list-head .how{font-size:10px;opacity:.8}
+.host-list{margin-bottom:var(--space-3);display:flex;flex-direction:column;gap:var(--space-1)}
+.host-card{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-primary);padding:var(--space-2);cursor:pointer;position:relative;transition:background .1s,border-color .1s}
+.host-card:hover{background:var(--bg-hover)}
+.host-card.selected{background:var(--bg-active);border-color:var(--accent)}
+.host-card .row1{display:flex;align-items:center;gap:var(--space-2)}
+.host-card .hc-dot{width:6px;height:6px;border-radius:50%;background:var(--fg-secondary);flex-shrink:0}
+.host-card .hc-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-primary);font-size:var(--text-sm);font-weight:600}
+.host-card .hc-del{width:18px;height:18px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);cursor:pointer;border-radius:var(--radius-sm);flex-shrink:0;opacity:0;transition:opacity .1s,color .1s;padding:0}
+.host-card:hover .hc-del{opacity:1}
+.host-card .hc-del:hover{color:var(--error)}
+.host-card .hc-del svg{width:12px;height:12px}
+.host-card .row2{display:flex;align-items:center;justify-content:space-between;margin-top:var(--space-1)}
+.host-card .hc-addr{font-family:var(--font-mono);font-size:10px;color:var(--fg-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.host-card .hc-connect{background:var(--accent);color:var(--bg-primary);border:none;border-radius:var(--radius-md);padding:3px 10px;font-size:var(--text-xs);font-family:inherit;font-weight:500;cursor:pointer;flex-shrink:0;margin-left:var(--space-2)}
+.host-card .hc-connect:hover{background:var(--accent-hover)}
+.host-card .hc-tofu{font-size:9px;color:var(--warning);font-family:var(--font-mono);margin-top:3px;display:block}
+
+.form-row{display:flex;gap:var(--space-2)}
+.form-group{margin-bottom:var(--space-3);flex:1;min-width:0}
+.form-group label{display:block;margin-bottom:var(--space-1);font-size:var(--text-xs);color:var(--fg-secondary)}
+.form-group input,.form-group select{width:100%;padding:var(--space-1) var(--space-2);background:var(--bg-primary);color:var(--fg-primary);border:1px solid var(--border);border-radius:var(--radius-md);font-size:var(--text-sm);font-family:var(--font-sans)}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--accent)}
+.field-error{display:block;color:var(--error);font-size:var(--text-xs);margin-top:2px}
+.field-hint{display:block;color:var(--fg-secondary);font-size:10px;margin-top:3px;line-height:1.5}
+.form-actions{display:flex;gap:var(--space-2);margin-top:var(--space-4)}
+.btn-primary,.btn-secondary{flex:1;padding:var(--space-2);border:none;border-radius:var(--radius-md);cursor:pointer;font-weight:500;font-size:var(--text-sm);font-family:var(--font-sans);transition:opacity .15s}
+.btn-primary{background:var(--accent);color:var(--bg-primary)}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-secondary{background:var(--border);color:var(--fg-primary)}
+.btn-secondary:hover{background:var(--fg-secondary)}
+.btn-primary:disabled,.btn-secondary:disabled{opacity:.5;cursor:not-allowed}
+
+/* ========== TabStrip（B-11：新建连接语义） ========== */
+#tabStrip{display:flex;height:var(--tab-strip-height);background:var(--bg-darker);border-bottom:1px solid var(--border);padding:0 var(--space-2);align-items:flex-end;flex-shrink:0;overflow-x:auto;overflow-y:hidden}
+.tab{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-1) var(--space-3);padding-bottom:calc(var(--space-1) + 1px);background:var(--bg-primary);border:1px solid var(--border);border-bottom:none;border-radius:var(--radius-md) var(--radius-md) 0 0;cursor:pointer;user-select:none;color:var(--fg-primary);font-size:var(--text-sm);white-space:nowrap;max-width:180px;min-width:0;transition:background .1s}
+.tab:hover{background:var(--bg-hover)}
+.tab.active{background:var(--bg-active);border-bottom:1px solid var(--bg-active);margin-bottom:-1px;padding-bottom:var(--space-1)}
+.status-dot{font-size:8px;line-height:1;flex-shrink:0;opacity:.7}
+.status-dot.filled{opacity:1}
+.status-dot.connecting{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+.tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab-rename-input{width:100px;padding:0 var(--space-1);background:var(--bg-primary);color:var(--fg-primary);border:1px solid var(--accent);border-radius:var(--radius-sm);font-size:var(--text-sm);font-family:inherit;outline:none;min-width:60px}
+.tab-close{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);cursor:pointer;padding:0;border-radius:var(--radius-md);flex-shrink:0;font-size:0}
+.tab-close svg{width:11px;height:11px}
+.tab-close:hover{color:var(--error);background:rgba(247,118,142,.15)}
+.new-tab-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--fg-secondary);border-radius:var(--radius-md);cursor:pointer;flex-shrink:0;align-self:center;padding:0}
+.new-tab-btn svg{width:16px;height:16px}
+.new-tab-btn:hover{color:var(--fg-primary);background:var(--bg-hover)}
+
+/* ========== PAGE003 终端 / PAGE009 引导式空态 ========== */
+#contentArea{flex:1;position:relative;overflow:hidden;background:var(--bg-primary)}
+.terminal-pane{position:absolute;top:0;left:0;right:0;bottom:0;display:none;flex-direction:column}
+.terminal-pane.active{display:flex}
+.term-body{flex:1;overflow-y:auto;padding:var(--space-2) var(--space-3);font-family:var(--font-mono);line-height:1.45;white-space:pre-wrap;word-break:break-all}
+.term-line{min-height:1.45em}
+.term-err{color:var(--error)}
+.term-status{color:var(--warning)}
+.term-dim{color:var(--fg-secondary)}
+.term-ok{color:var(--success)}
+.term-fix{color:var(--accent);font-size:.92em}
+.term-input-row{display:flex;align-items:center;gap:6px;padding:0 var(--space-3) var(--space-2);font-family:var(--font-mono);flex-shrink:0}
+.term-prompt{color:var(--success);flex-shrink:0}
+.term-input{flex:1;background:transparent;border:none;outline:none;color:var(--fg-primary);font-family:var(--font-mono);caret-color:var(--accent)}
+.reconnect-bar{display:flex;justify-content:center;align-items:center;gap:var(--space-3);padding:var(--space-2);background:var(--bg-secondary);border-top:1px solid var(--border)}
+.reconnect-note{font-size:var(--text-xs);color:var(--fg-secondary)}
+.reconnect-btn{display:flex;align-items:center;gap:6px;padding:var(--space-1) var(--space-4);background:var(--accent);color:var(--bg-primary);border:none;border-radius:var(--radius-md);cursor:pointer;font-size:var(--text-sm);font-family:var(--font-sans);font-weight:500}
+.reconnect-btn svg{width:13px;height:13px}
+.reconnect-btn:hover{background:var(--accent-hover)}
+
+/* 引导式空态（B-02/B-10，docs/07_design_system/PATTERN.md §4） */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:var(--space-5);text-align:center}
+.empty-icon{width:32px;height:32px;color:var(--fg-secondary);opacity:.5;margin-bottom:var(--space-3)}
+.empty-icon svg{width:100%;height:100%}
+.empty-text{font-size:var(--text-sm);color:var(--fg-secondary);margin-bottom:var(--space-1)}
+.empty-hint{font-size:var(--text-xs);color:var(--fg-secondary);opacity:.7;margin-bottom:var(--space-3);max-width:260px;line-height:1.6}
+.empty-actions{display:flex;gap:var(--space-2)}
+.empty-btn{display:flex;align-items:center;gap:6px;padding:var(--space-1) var(--space-3);border-radius:var(--radius-md);cursor:pointer;font-size:var(--text-xs);font-family:inherit;border:1px solid var(--border);background:var(--bg-secondary);color:var(--fg-primary)}
+.empty-btn svg{width:13px;height:13px}
+.empty-btn:hover{background:var(--bg-hover);border-color:var(--accent)}
+.empty-btn.primary{background:var(--accent);color:var(--bg-primary);border-color:var(--accent)}
+.empty-btn.primary:hover{background:var(--accent-hover)}
+.empty-plan{margin-top:var(--space-3);font-size:10px;color:var(--fg-secondary);border:1px dashed var(--border);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);max-width:280px;line-height:1.6}
+.empty-plan b{color:var(--warning);font-weight:600}
+
+/* ========== StatusBar ========== */
+#statusBar{display:flex;align-items:center;justify-content:space-between;height:var(--status-bar-height);background:var(--bg-secondary);border-top:1px solid var(--border);padding:0 var(--space-2);flex-shrink:0;font-size:var(--text-xs);color:var(--fg-secondary);user-select:none}
+.status-left{display:flex;align-items:center;gap:var(--space-1)}
+.status-dot{font-size:8px;line-height:1}
+.status-idle{opacity:.5}
+.status-right{display:flex;align-items:center;gap:var(--space-2)}
+.separator{color:var(--border)}
+.font-size-area{position:relative}
+.font-size-btn{background:transparent;border:none;color:var(--fg-secondary);cursor:pointer;font-size:var(--text-xs);font-family:inherit;padding:0 var(--space-1);border-radius:var(--radius-sm);line-height:1}
+.font-size-btn:hover{color:var(--fg-primary);background:var(--bg-hover)}
+.font-menu{position:absolute;bottom:100%;right:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-dropdown);padding:var(--space-1) 0;margin-bottom:var(--space-1);min-width:80px;z-index:100}
+.font-option{display:block;width:100%;padding:var(--space-1) var(--space-2);background:transparent;border:none;color:var(--fg-primary);font-size:var(--text-xs);font-family:inherit;cursor:pointer;text-align:left;line-height:1}
+.font-option:hover{background:var(--bg-hover)}
+.font-option.active{color:var(--accent);font-weight:600}
+
+/* ========== PAGE008 命令面板（B-03 占位引导化） ========== */
+#paletteBackdrop{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay-backdrop);display:flex;justify-content:center;padding-top:20%;z-index:2000}
+.palette-panel{width:480px;max-width:80vw;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-modal);overflow:hidden}
+.palette-input{width:100%;padding:var(--space-3) var(--space-4);background:var(--bg-primary);color:var(--fg-primary);border:none;border-bottom:1px solid var(--border);font-size:var(--text-base);font-family:var(--font-sans);outline:none}
+.palette-input::placeholder{color:var(--fg-secondary)}
+.palette-body{padding:var(--space-3) var(--space-4) var(--space-4)}
+.palette-tag{font-size:10px;color:var(--warning);border:1px solid var(--warning);border-radius:var(--radius-full);padding:1px 8px;font-family:var(--font-mono)}
+.palette-cat{display:flex;justify-content:space-between;align-items:center;padding:var(--space-1) var(--space-2);margin-bottom:2px;border-radius:var(--radius-md);color:var(--fg-secondary);font-size:var(--text-xs)}
+.palette-cat .k{font-family:var(--font-mono);font-size:10px}
+.palette-note{margin-top:var(--space-2);font-size:10px;color:var(--fg-secondary);line-height:1.6}
+.palette-note b{color:var(--warning)}
+
+/* ========== Toast（PAGE010） ========== */
+#toastContainer{position:fixed;bottom:calc(var(--status-bar-height) + var(--space-2));right:var(--space-3);display:flex;flex-direction:column-reverse;gap:var(--space-2);z-index:3000;pointer-events:none}
+.toast{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-3);background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-dropdown);font-size:var(--text-sm);color:var(--fg-primary);cursor:pointer;pointer-events:auto;max-width:360px;font-family:var(--font-sans);text-align:left;animation:toast-in .2s ease-out forwards;transition:opacity .25s ease,transform .25s ease}
+.toast.leaving{opacity:0;transform:translateY(8px)}
+.toast.success{border-left:3px solid var(--success)}
+.toast.error{border-left:3px solid var(--error)}
+.toast.info{border-left:3px solid var(--accent)}
+.toast .t-ico{flex-shrink:0;font-size:var(--text-base);font-weight:700}
+.toast.success .t-ico{color:var(--success)}
+.toast.error .t-ico{color:var(--error)}
+.toast.info .t-ico{color:var(--accent)}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ========== 危险确认（B-06） / 密钥指纹确认（B-12） ========== */
+.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay-backdrop);display:flex;align-items:center;justify-content:center;z-index:2500}
+.dialog{width:400px;max-width:86vw;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-modal);padding:var(--space-4)}
+.dialog h3{font-size:var(--text-sm);color:var(--fg-primary);margin-bottom:var(--space-2);display:flex;align-items:center;gap:var(--space-2)}
+.dialog h3 svg{width:16px;height:16px}
+.dialog .d-msg{font-size:var(--text-xs);color:var(--fg-secondary);line-height:1.7;margin-bottom:var(--space-3)}
+.dialog .d-msg b{color:var(--fg-primary)}
+.dialog .fp-block{font-family:var(--font-mono);font-size:10px;color:var(--fg-primary);background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-2);word-break:break-all;line-height:1.7;margin-bottom:var(--space-3)}
+.dialog .d-actions{display:flex;justify-content:flex-end;gap:var(--space-2)}
+.danger-btn{padding:var(--space-1) var(--space-3);border-radius:var(--radius-md);cursor:pointer;font-size:var(--text-xs);font-family:inherit;border:1px solid var(--error);background:transparent;color:var(--error);font-weight:600}
+.danger-btn:hover{background:rgba(247,118,142,.15)}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="windowWrap">
+    <div id="windowFrame">
+      <div class="titlebar">
+        <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="title">TermForge</div>
+        <div class="winbadge">V1 · 1200×800 · tauri.conf.json</div>
+      </div>
+      <div class="app">
+        <div class="page-badge" style="top:auto;bottom:6px;left:8px;right:auto;z-index:30"><b>PAGE001</b> · F001-F003/F010-F013 · 来源 App.svelte 外壳</div>
+        <div id="activityBar"></div>
+        <div id="sidePanel">
+          <div class="panel-inner">
+            <div class="panel-header">
+              <span class="panel-title" id="panelTitle">Connections</span>
+              <button class="collapse-btn" id="collapseBtn" title="Collapse Side Panel"></button>
+            </div>
+            <div class="panel-content" id="panelContent" style="position:relative"></div>
+          </div>
+          <div class="drag-handle" id="dragHandle"></div>
+        </div>
+        <div class="main-area" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;position:relative">
+          <div id="tabStrip"></div>
+          <div id="contentArea" style="position:relative"></div>
+          <div id="statusBar">
+            <div class="status-left" id="statusLeft"></div>
+            <div class="status-right">
+              <span>UTF-8</span><span class="separator">|</span>
+              <span class="pty-size" id="ptySize" title="PTY 尺寸（F017：随窗口/字号变化）">80×24</span><span class="separator">|</span>
+              <div class="font-size-area" id="fontArea">
+                <button class="font-size-btn" id="fontBtn" title="Change terminal font size">13px mono ▾</button>
+                <div class="font-menu hidden" id="fontMenu"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="paletteBackdrop" class="hidden">
+        <div class="palette-panel">
+          <input type="text" class="palette-input" id="paletteInput" placeholder="Search commands...">
+          <div class="palette-body" id="paletteBody"></div>
+        </div>
+      </div>
+      <div id="toastContainer"></div>
+      <div id="confirmOverlay" class="overlay hidden">
+        <div class="dialog">
+          <h3 id="confirmIcon"></h3>
+          <div class="d-msg" id="confirmMsg"></div>
+          <div class="d-actions">
+            <button class="empty-btn" id="confirmCancel">取消</button>
+            <button class="danger-btn" id="confirmOk">删除</button>
+          </div>
+        </div>
+      </div>
+      <div id="fpOverlay" class="overlay hidden">
+        <div class="dialog">
+          <h3 id="fpIcon"></h3>
+          <div class="d-msg" id="fpMsg"></div>
+          <div class="fp-block" id="fpBlock"></div>
+          <div class="d-msg" style="margin-bottom:var(--space-3)">确认信任后，指纹将记录到 <b>~/.termforge/known_hosts</b>（权限 0600）；指纹变更时连接将被拒绝并给出中间人攻击警告。</div>
+          <div class="d-actions">
+            <button class="empty-btn" id="fpAbort">中止连接</button>
+            <button class="btn-primary" style="flex:none;padding:var(--space-1) var(--space-3);font-size:var(--text-xs)" id="fpTrust">信任并继续</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="reviewPanel">
+    <h1>TermForge V1 新版原型</h1>
+    <div class="sub">输入 = PRD（46 功能）+ P4 审查 13 项 B 类优化 + Design System（五文件）。旧版事实基线见 <b>prototype/v0-old/</b>。铁律遵守：28 已实现保留、5 占位引导式空态、13 规划仅留档不虚构；源码缺陷按修复后规格呈现（场景内注明）。</div>
+    <section id="scenarioListWrap"><h2>场景（五态+异常）</h2><div id="scenarioList"></div></section>
+    <section><h2>快捷键模拟（9 组 + Esc）</h2><div class="btnrow" id="shortcutRow"></div><div class="note">浏览器宿主限制（Ctrl+W 关页签等），提供等价模拟按钮；Tauri 实机无此限制。焦点在输入框/终端时快捷键让位（SSH 透传惯例，D-2 基线）。</div></section>
+    <section><h2>页面导航（10 页，角标=编号+来源）</h2><div id="pageNav"></div></section>
+    <section><h2>B 类优化落地核验（13/13）</h2><ul class="check-list" id="bList"></ul></section>
+    <section><h2>C 类待用户决策（默认不做，留档）</h2><ul class="c-list" id="cList"></ul></section>
+    <section><h2>功能覆盖对照（46 项不丢失）</h2>
+      <div class="note"><b>28 已实现（F001-F028）</b>：全部保留可交互。<br><b>5 占位（F029-F033）</b>：SFTP/隧道/Runbook/设置=引导式空态（B-02）；命令面板=占位引导化（B-03）。<br><b>13 规划（F034-F046）</b>：不虚构，见 C-1 清单。</div>
+    </section>
+    <section><h2>五态覆盖</h2>
+      <div class="note"><b>Loading</b>=场景「加载中」/connecting；<b>Success</b>=默认（含 TOFU 确认）；<b>Error</b>=认证/超时/被拒/DNS/不可达/MITM；<b>Empty</b>=空数据/首次使用/无 Tab（PAGE009）；<b>Permission</b>=「无可用密钥」（密钥访问）+ TOFU 指纹确认（B-12）+ 密码掩码。</div>
+    </section>
+    <section><h2>后端事实与修复后规格</h2>
+      <div class="kv">session_list：后端已注册、前端未调用（F028/D-1）
+加密降级：<span class="warn">源码事实=明文落盘</span> → V1 呈现=拒绝保存（C-7）
+session_close 泄漏：<span class="warn">源码事实=close 失败仍移除 Tab</span> → V1 契约=后端保证回收（C-6）
+Ctrl+R 死文案：<span class="warn">源码事实</span> → V1 已修正（B-04）
+closed 无重连按钮：<span class="warn">源码事实</span> → V1 已修复呈现（B-05）</div>
+    </section>
+    <section><h2>DS 令牌速览（来源 app.css）</h2>
+      <div class="kv">色板 TokyoNight：<span class="hl">--accent #7aa2f7</span> / success #9ece6a
+warning #e0af68 / error #f7768e / border #414868
+bg 阶：#16161e→#343b58 / fg：#a9b1d6、#565f89
+间距 4/8/12/16/24/32 · 圆角 2/4/8【V1建议】
+布局：ActivityBar48 侧栏180-400(默认260)
+Tab36 StatusBar24 · 终端13px(10-20档)</div>
+    </section>
+    <section><h2>演示按钮</h2><div class="btnrow">
+      <button class="sim-btn" id="demoToastBtn">Toast 三类</button>
+      <button class="sim-btn" id="demoFpBtn">TOFU 确认框</button>
+      <button class="sim-btn" id="demoDangerBtn">危险确认框</button>
+    </div></section>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   TermForge V1 原型脚本
+   行为基线：src-ui 源码（App/TerminalTab/ConnectionForm/TabStrip...）
+   增量：P4 审查 B-01..B-13（逐处注明）
+   ============================================================ */
+'use strict';
+
+/* ---------- 基础工具 ---------- */
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function el(tag,cls,html){var e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+function nanoid10(){var s='';var chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123789';chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';for(var i=0;i<10;i++){s+=chars.charAt(Math.floor(Math.random()*chars.length));}return s;}
+
+/* ---------- 图标（docs/07_design_system/ASSETS.md：旧 6 枚逐字 + V1 新增同风格） ---------- */
+var ICONS={
+ connections:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><path d="M8 8a4 4 0 0 1 8 0"/></svg>',
+ sftp:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+ tunnel:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+ runbook:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>',
+ settings:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>',
+ chevronLeft:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+ terminal:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>',
+ shield:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>',
+ plus:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+ x:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+ warn:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+ rotate:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>'
+};
+
+/* ---------- 模拟数据 ---------- */
+var DEFAULT_SAVED=[
+ {id:'conn_demo01',name:'prod-web-01',host:'203.0.113.10',port:22,username:'deploy',firstTime:true},
+ {id:'conn_demo02',name:'db-primary',host:'198.51.100.20',port:2222,username:'admin',firstTime:false},
+ {id:'conn_demo03',name:'dev-jump',host:'192.168.1.100',port:22,username:'ops',firstTime:false}
+];
+var DEMO_FP='04:9f:3b:c2:7a:11:d8:5e:66:0a:b4:2f:91:c7:38:e5:12:60:7d:4b:aa:83:29:fe:56:1c:0d:97:e4:3a:68:8b';
+
+var SCENARIOS={
+ default:{label:'默认：连接成功（首连含 TOFU 确认）',tag:'Success',outcome:'success'},
+ loading:{label:'加载中：connecting 保持（Loading 态演示）',tag:'Loading',outcome:'hang'},
+ authfail:{label:'认证失败（B-08 凭据指引）',tag:'Error',outcome:'auth'},
+ timeout:{label:'连接超时（15s 语义）',tag:'Error',outcome:'timeout'},
+ refused:{label:'连接被拒',tag:'Error',outcome:'refused'},
+ dns:{label:'DNS 失败',tag:'Error',outcome:'dns'},
+ unreachable:{label:'网络不可达',tag:'Error',outcome:'unreachable'},
+ mitm:{label:'主机密钥变更 MITM（B-13 专案文案）',tag:'Error',outcome:'mitm'},
+ nokey:{label:'无可用密钥（权限/密钥访问）',tag:'Permission',outcome:'nokey'},
+ remoteclose:{label:'远端断开（B-05 重连条 + B-11 Toast）',tag:'Error',outcome:'remote-close'},
+ empty:{label:'空数据：无已存连接',tag:'Empty',outcome:'success'},
+ firstrun:{label:'首次使用：无连接无 Tab',tag:'Empty',outcome:'success'}
+};
+
+/* ---------- 全局状态 ---------- */
+var state={
+ view:'connections',collapsed:false,panelWidth:260,
+ saved:[],selectedConnId:'',
+ host:'',port:'22',username:'',password:'',
+ errors:{},touched:{},submitting:false,
+ tabs:[],activeTabId:'',tabCounter:0,
+ editingTabId:null,editTitle:'',
+ fontSize:13,fontMenuOpen:false,
+ paletteOpen:false,toasts:[],toastSeq:0,
+ scenario:'default',
+ confirmCb:null,fpPending:null
+};
+
+/* ---------- Toast（toast.ts 行为基线：3s + 250ms 淡出，点击关闭） ---------- */
+function showToast(message,type,duration){
+ var id=++state.toastSeq;
+ state.toasts.push({id:id,message:message,type:type||'info',leaving:false});
+ renderToasts();
+ setTimeout(function(){markLeave(id);},duration||3000);
+}
+function markLeave(id){
+ state.toasts=state.toasts.map(function(t){return t.id===id?{id:t.id,message:t.message,type:t.type,leaving:true}:t;});
+ renderToasts();
+ setTimeout(function(){state.toasts=state.toasts.filter(function(t){return t.id!==id;});renderToasts();},250);
+}
+function renderToasts(){
+ var box=$('toastContainer');box.innerHTML='';
+ state.toasts.forEach(function(t){
+  var ico=t.type==='success'?'✓':(t.type==='error'?'✕':'ℹ');
+  var d=el('button','toast '+t.type+(t.leaving?' leaving':''));
+  d.innerHTML='<span class="t-ico">'+ico+'</span><span>'+esc(t.message)+'</span>';
+  d.onclick=function(){markLeave(t.id);};
+  box.appendChild(d);
+ });
+}
+
+/* ---------- 危险确认（B-06：替代原生 confirm） ---------- */
+function askDanger(title,msg,okLabel,cb){
+ $('confirmIcon').innerHTML=ICONS.warn+esc(title);
+ $('confirmMsg').innerHTML=msg;
+ $('confirmOk').textContent=okLabel||'删除';
+ state.confirmCb=cb;
+ $('confirmOverlay').classList.remove('hidden');
+ $('confirmCancel').focus();
+}
+function closeDanger(ok){
+ $('confirmOverlay').classList.add('hidden');
+ var cb=state.confirmCb;state.confirmCb=null;
+ if(ok&&cb)cb();
+}
+
+/* ---------- TOFU 指纹确认（B-12：确认式 TOFU，V1 修复后规格） ---------- */
+function showFingerprint(conn){
+ state.fpPending=conn;
+ $('fpIcon').innerHTML=ICONS.shield+'主机密钥确认（首次连接）';
+ $('fpMsg').innerHTML='首次连接 <b>'+esc(conn.host)+':'+esc(conn.port)+'</b>。服务器公钥指纹（hex，来源 client.rs host_key_fingerprint）：';
+ $('fpBlock').textContent=DEMO_FP;
+ $('fpOverlay').classList.remove('hidden');
+ $('fpAbort').focus();
+}
+function fpDecide(trust){
+ $('fpOverlay').classList.add('hidden');
+ var conn=state.fpPending;state.fpPending=null;
+ if(!conn)return;
+ if(trust){
+  conn.firstTime=false;
+  showToast('已记录 '+conn.host+':'+conn.port+' 的主机密钥（known_hosts，0600）','success');
+  startConnect(conn);
+ }else{
+  showToast('已中止连接：未记录主机密钥，未发起 session_open','info');
+ }
+}
+
+/* ---------- PAGE001 外壳 ---------- */
+var VIEWS=[
+ {id:'connections',label:'Connections',icon:'connections'},
+ {id:'sftp',label:'SFTP',icon:'sftp'},
+ {id:'tunnel',label:'Tunnel',icon:'tunnel'},
+ {id:'runbook',label:'Runbook',icon:'runbook'},
+ {id:'settings',label:'Settings',icon:'settings'}
+];
+function renderActivityBar(){
+ var bar=$('activityBar');bar.innerHTML='';
+ VIEWS.forEach(function(v){
+  var b=el('button','act-btn'+(state.view===v.id?' active':''),ICONS[v.icon]);
+  b.title=v.label;
+  b.onclick=function(){handleViewChange(v.id);};
+  bar.appendChild(b);
+ });
+}
+function handleViewChange(view){
+ if(state.view===view){state.collapsed=!state.collapsed;}
+ else{state.view=view;state.collapsed=false;}
+ renderShell();renderActivityBar();renderPanelContent();
+}
+function renderShell(){
+ var sp=$('sidePanel');
+ sp.classList.toggle('collapsed',state.collapsed);
+ sp.style.width=(state.collapsed?0:state.panelWidth)+'px';
+}
+
+/* ---------- 侧栏内容（按视图） ---------- */
+function badge(pid,src){return '<div class="page-badge"><b>'+pid+'</b> · '+src+'</div>';}
+function emptyGuided(icon,text,hint,actionsHtml,planHtml){
+ return '<div class="empty-state"><div class="empty-icon">'+icon+'</div>'
+  +'<div class="empty-text">'+text+'</div><div class="empty-hint">'+hint+'</div>'
+  +'<div class="empty-actions">'+actionsHtml+'</div>'+(planHtml||'')+'</div>';
+}
+var PLAN_NOTE={
+ sftp:'<b>规划能力（不虚构）</b>：双栏文件管理 / 上传下载 / 进度 / 远端管理（PRD F029/F038，FR21-30）。范围与优先级见 C 类决策清单 C-1。',
+ tunnel:'<b>规划能力（不虚构）</b>：Local Forward / SOCKS5 规则启停（PRD F030/F039，FR31-34）。见 C-1。',
+ runbook:'<b>规划能力（不虚构）</b>：模板 / 参数化 / 批量执行 / 历史（PRD F031/F040，FR35-44）。见 C-1。',
+ settings:'<b>规划能力（不虚构）</b>：字号/主题/默认参数持久化（PRD F032/F034，FR47/49）。见 C-1/C-3。'
+};
+function goConnectionsBtn(){return '<button class="empty-btn primary" data-act="goconn">'+ICONS.connections+'前往连接中心</button>';}
+
+function renderPanelContent(){
+ var pc=$('panelContent');
+ var title=$('panelTitle');
+ VIEWS.forEach(function(v){if(v.id===state.view)title.textContent=v.label==='tunnel'?'Tunnels':(v.label==='runbook'?'Runbooks':v.label);});
+ if(state.view==='connections'){
+  pc.innerHTML=renderConnectionForm();
+  wireConnectionForm();
+  return;
+ }
+ var conf={
+  sftp:{icon:ICONS.sftp,text:'No active SFTP session',hint:'Connect to a server first, then switch to SFTP view（旧文案事实保留）',plan:PLAN_NOTE.sftp,extra:''},
+  tunnel:{icon:ICONS.tunnel,text:'No tunnels configured',hint:'Create a new tunnel to forward ports（旧文案事实保留）',plan:PLAN_NOTE.tunnel,extra:''},
+  runbook:{icon:ICONS.runbook,text:'No runbooks yet',hint:'Create a runbook to automate tasks（旧文案事实保留）',plan:PLAN_NOTE.runbook,extra:''},
+  settings:{icon:ICONS.settings,text:'Settings',hint:'Application settings will appear here（旧文案事实保留）',plan:PLAN_NOTE.settings,extra:'<button class="empty-btn" data-act="openfont">查看字号菜单（状态栏现有入口）</button>'}
+ }[state.view];
+ var pidMap={sftp:'PAGE004 · F029/F038',tunnel:'PAGE005 · F030/F039',runbook:'PAGE006 · F031/F040',settings:'PAGE007 · F032/F034'};
+ var acts=(state.view==='settings'?'':goConnectionsBtn())+conf.extra;
+ pc.innerHTML=badge(pidMap[state.view],'B-02 引导式空态 · 来源 SidePanel.svelte L149-155')
+  +emptyGuided(conf.icon,conf.text,conf.hint,acts,'<div class="empty-plan">'+conf.plan+'</div>');
+ var go=pc.querySelector('[data-act="goconn"]');
+ if(go)go.onclick=function(){handleViewChange('connections');};
+ var of=pc.querySelector('[data-act="openfont"]');
+ if(of)of.onclick=function(){state.fontMenuOpen=true;renderFontMenu();showToast('字号菜单已展开（状态栏右侧，F018 现有真实入口，B-10 引导）','info');};
+}
+
+/* ---------- PAGE002 连接中心（B-01 主机卡 + B-07 快连 + B-09 密码说明） ---------- */
+function renderConnectionForm(){
+ var html='';
+ html+=badge('PAGE002','F004-F009 · B-01/B-07/B-09 · 来源 ConnectionForm.svelte');
+ if(state.saved.length>0){
+  html+='<div class="list-head"><span>Saved Connections（'+state.saved.length+'）</span><span class="how">单击回填 · 双击直连 · Connect 快连（B-07）</span></div>';
+  html+='<div class="host-list">';
+  state.saved.forEach(function(c){
+   html+='<div class="host-card'+(state.selectedConnId===c.id?' selected':'')+'" data-id="'+c.id+'">'
+    +'<div class="row1"><span class="hc-dot"></span><span class="hc-name">'+esc(c.name)+'</span>'
+    +'<button class="hc-del" title="Delete connection（危险确认 B-06）">'+ICONS.x+'</button></div>'
+    +'<div class="row2"><span class="hc-addr">'+esc(c.username)+'@'+esc(c.host)+':'+esc(c.port)+'</span>'
+    +'<button class="hc-connect">Connect</button></div>'
+    +(c.firstTime?'<span class="hc-tofu">TOFU：首次连接将弹出密钥指纹确认（B-12）</span>':'')
+    +'</div>';
+  });
+  html+='</div>';
+ }else{
+  html+='<div class="note" style="color:var(--fg-secondary);font-size:var(--text-xs);margin-bottom:var(--space-2)">暂无已存连接（connection_list 返回空）——填写下方表单保存第一条。</div>';
+ }
+ html+='<div class="form-row">'
+  +'<div class="form-group"><label for="conn-host">Host</label><input id="conn-host" type="text" placeholder="e.g. 192.168.1.100" value="'+esc(state.host)+'">'
+  +(state.touched.host&&state.errors.host?'<span class="field-error">'+state.errors.host+'</span>':'')+'</div>'
+  +'<div class="form-group" style="flex:.6"><label for="conn-port">Port</label><input id="conn-port" type="number" value="'+esc(state.port)+'">'
+  +(state.touched.port&&state.errors.port?'<span class="field-error">'+state.errors.port+'</span>':'')+'</div>'
+  +'</div>'
+  +'<div class="form-group"><label for="conn-user">Username</label><input id="conn-user" type="text" placeholder="e.g. admin" value="'+esc(state.username)+'">'
+  +(state.touched.username&&state.errors.username?'<span class="field-error">'+state.errors.username+'</span>':'')+'</div>'
+  +'<div class="form-group"><label for="conn-pass">Password</label><input id="conn-pass" type="password" value="'+esc(state.password)+'">'
+  +'<span class="field-hint">可选。留空时后端将依次探测 ~/.ssh 下的默认密钥（id_ed25519 / id_rsa / id_ecdsa）——B-09，如实说明 client.rs 既有行为</span></div>'
+  +'<div class="form-actions">'
+  +'<button class="btn-primary" id="btnConnect"'+(state.submitting?' disabled':'')+'>Connect</button>'
+  +'<button class="btn-secondary" id="btnSave"'+(state.submitting?' disabled':'')+'>Save</button>'
+  +'</div>';
+ return html;
+}
+function wireConnectionForm(){
+ var host=$('conn-host'),port=$('conn-port'),user=$('conn-user'),pass=$('conn-pass');
+ if(!host)return;
+ host.oninput=function(){state.host=host.value;refreshErrors();};
+ port.oninput=function(){state.port=port.value;refreshErrors();};
+ user.oninput=function(){state.username=user.value;refreshErrors();};
+ pass.oninput=function(){state.password=pass.value;};
+ host.onblur=function(){state.touched.host=true;updateFieldError(host,'host');};
+ port.onblur=function(){state.touched.port=true;updateFieldError(port,'port');};
+ user.onblur=function(){state.touched.username=true;updateFieldError(user,'username');};
+ var form=host.closest('.panel-content');
+ form.onkeydown=function(e){
+  if(e.key==='Enter'&&!e.shiftKey&&!e.ctrlKey){e.preventDefault();handleConnect();}
+ };
+ $('btnConnect').onclick=handleConnect;
+ $('btnSave').onclick=handleSave;
+ form.querySelectorAll('.host-card').forEach(function(card){
+  var id=card.getAttribute('data-id');
+  var conn=state.saved.filter(function(c){return c.id===id;})[0];
+  if(!conn)return;
+  card.onclick=function(e){
+   if(e.target.closest('.hc-del'))return;
+   if(e.target.closest('.hc-connect'))return;
+   selectConnection(id);
+  };
+  card.ondblclick=function(e){
+   if(e.target.closest('.hc-del'))return;
+   if(e.target.closest('.hc-connect'))return;
+   selectConnection(id);doConnect(conn);
+  };
+  card.querySelector('.hc-del').onclick=function(e){
+   e.stopPropagation();
+   askDanger('删除连接','将删除连接 <b>'+esc(conn.name)+'</b>（'+esc(conn.username)+'@'+esc(conn.host)+':'+esc(conn.port)+'）。此操作不可撤销（B-06：自绘危险确认替代原生 confirm）。','删除',function(){handleDelete(conn.id,conn.name);});
+  };
+  card.querySelector('.hc-connect').onclick=function(e){
+   e.stopPropagation();
+   selectConnection(id);doConnect(conn);
+  };
+ });
+}
+/* P2-1 修复（HTML_QA_REPORT §四）：失焦改局部更新——只定点改本字段的错误提示节点，不再 renderPanelContent() 全量重建表单 DOM。
+   原全量重渲染导致键盘 Tab 流焦点跳回 body、连续输入第二字段起 input 事件落在分离 DOM 上 state 不同步。校验逻辑与数据结构不变（仍走 refreshErrors()）。 */
+function updateFieldError(input,fieldName){
+ refreshErrors();
+ var group=input.closest('.form-group');
+ if(!group)return;
+ var span=group.querySelector('.field-error');
+ var msg=state.touched[fieldName]&&state.errors[fieldName];
+ if(msg){
+  if(span){span.textContent=msg;}
+  else{span=document.createElement('span');span.className='field-error';span.textContent=msg;group.appendChild(span);}
+ }else if(span){span.remove();}
+}
+function refreshErrors(){
+ var errors={};
+ if(!state.host.trim())errors.host='Host is required';
+ var portNum=parseInt(state.port,10);
+ if(!state.port||isNaN(portNum)||portNum<1||portNum>65535)errors.port='Port must be 1-65535';
+ if(!state.username.trim())errors.username='Username is required';
+ state.errors=errors;
+}
+function handleConnect(){
+ state.touched={host:true,port:true,username:true};
+ refreshErrors();
+ renderPanelContent();
+ if(Object.keys(state.errors).length>0)return;
+ doConnect({host:state.host.trim(),port:parseInt(state.port,10),username:state.username.trim(),password:state.password||undefined,firstTime:!isKnownHost(state.host.trim(),parseInt(state.port,10))});
+}
+function isKnownHost(host,port){
+ return state.saved.some(function(c){return c.host===host&&c.port===port;});
+}
+function handleSave(){
+ state.touched={host:true,port:true,username:true};
+ refreshErrors();
+ renderPanelContent();
+ if(Object.keys(state.errors).length>0)return;
+ if(state.submitting)return;
+ state.submitting=true;renderPanelContent();
+ var name=state.username.trim()+'@'+state.host.trim();
+ var dup=state.saved.some(function(c){return c.name===name||(c.host===state.host.trim()&&c.port===parseInt(state.port,10)&&c.username===state.username.trim());});
+ setTimeout(function(){
+  state.submitting=false;
+  if(dup){showToast('Connection "'+name+'" already exists','error');renderPanelContent();return;}
+  state.saved.push({id:'conn_'+nanoid10(),name:name,host:state.host.trim(),port:parseInt(state.port,10),username:state.username.trim(),firstTime:true});
+  showToast('Connection "'+name+'" saved（密码 AES-256-GCM 加密落盘 connections.json，0600）','success');
+  renderPanelContent();
+ },400);
+}
+function handleDelete(id,name){
+ state.saved=state.saved.filter(function(c){return c.id!==id;});
+ if(state.selectedConnId===id)state.selectedConnId='';
+ showToast('Deleted "'+name+'"','success');
+ renderPanelContent();
+}
+function selectConnection(id){
+ var conn=state.saved.filter(function(c){return c.id===id;})[0];
+ if(!conn)return;
+ state.host=conn.host;state.port=String(conn.port);state.username=conn.username;state.password=conn.password||'';
+ state.selectedConnId=id;state.errors={};state.touched={};
+ renderPanelContent();
+}
+function focusHost(){
+ state.view='connections';state.collapsed=false;
+ renderActivityBar();renderShell();renderPanelContent();
+ var h=$('conn-host');
+ if(h){h.focus();h.select();}
+}
+
+/* ---------- 连接流程（PAGE003）：TOFU → connecting → 结果 ---------- */
+function doConnect(conn){
+ var outcome=SCENARIOS[state.scenario].outcome;
+ if(outcome!=='mitm'&&conn.firstTime){showFingerprint(conn);return;}
+ startConnect(conn);
+}
+function startConnect(conn){
+ var tabId='tab_'+(++state.tabCounter);
+ var tab={id:tabId,title:conn.username+'@'+conn.host,conn:conn,sessionId:null,status:'idle',lines:[],renameValue:''};
+ state.tabs.push(tab);
+ state.activeTabId=tabId;
+ tab.status='connecting';
+ tabLine(tab,'Connecting...','term-dim');
+ renderTabStrip();renderContent();renderStatusBar();updatePtySize();
+ var delay=state.scenario==='loading'?6000:1400;
+ setTimeout(function(){resolveConnect(tab);},delay);
+}
+function tabLine(tab,text,cls){tab.lines.push({text:text,cls:cls||''});}
+function errorMessage(outcome,conn){
+ switch(outcome){
+  case 'auth':return {err:'Authentication failed — check username and password',
+   hint:'Reconnect 使用本 Tab 创建时的凭据快照；如已在连接中心修改凭据，请关闭此 Tab 后重新连接。（B-08 修复后文案；B-04：旧版此处诱导按未注册快捷键的死文案已移除）'};
+  case 'timeout':return {err:'Connection timed out',hint:'Click Reconnect to retry.（B-04 修复后文案）'};
+  case 'refused':return {err:'Connection refused — check host and port',hint:'Click Reconnect to retry.（B-04）'};
+  case 'dns':return {err:'Host not found — check the address',hint:'Click Reconnect to retry.（B-04）'};
+  case 'unreachable':return {err:'Network unreachable',hint:'Click Reconnect to retry.（B-04）'};
+  case 'nokey':return {err:'Connection failed',hint:'[原始错误] Authentication failed: no password provided and no suitable SSH key found（探测 ~/.ssh/id_ed25519、id_rsa、id_ecdsa 均未成功）。源码事实：friendlyError 将其映射为通用 Connection failed。'};
+  case 'mitm':return {err:'主机密钥变更 — 可能存在中间人攻击（Host key mismatch）',
+   hint:'如确认服务器已重装或更换密钥，请删除 ~/.termforge/known_hosts 中 '+esc(conn.host)+':'+esc(conn.port)+' 的条目后重试。（B-13 修复后规格：源码 friendlyError 无此分支，会被吞成 "Connection failed"；原始错误含 MITM 警告）'};
+  default:return {err:'Connection failed',hint:'Click Reconnect to retry.（B-04）'};
+ }
+}
+function writeBanner(tab){
+ tab.lines=[];
+ tabLine(tab,'Welcome to Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-84-generic x86_64)','term-dim');
+ tabLine(tab,'','term-dim');
+ tabLine(tab,' * Documentation:  https://help.ubuntu.com','term-dim');
+ tabLine(tab,' * Management:     https://landscape.canonical.com','term-dim');
+ tabLine(tab,' * Support:        https://ubuntu.com/advantage','term-dim');
+ tabLine(tab,'','term-dim');
+ tabLine(tab,'Last login: '+new Date().toUTCString().replace('GMT','UTC')+' from 203.0.113.99','term-dim');
+ tabLine(tab,'[status] connected（session '+tab.sessionId+'，PTY xterm-256color 80×24）','term-status');
+}
+function termCommandResponse(cmd,tab){
+ var c=cmd.trim();
+ if(!c)return'';
+ if(c==='clear'){tab.lines=[];return null;}
+ if(c==='ls')return 'deploy  logs  app  .bashrc  .ssh';
+ if(c==='pwd')return '/home/'+tab.conn.username;
+ if(c==='whoami')return tab.conn.username;
+ if(c==='uptime')return ' 09:41:23 up 27 days,  3:12,  1 user,  load average: 0.08, 0.05, 0.01';
+ if(c==='df -h'||c==='df')return 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/vda1        40G   12G   26G  32% /';
+ if(c==='echo $TERM')return 'xterm-256color';
+ if(c==='exit'){
+  setTimeout(function(){
+   tabLine(tab,'[status] closed: Connection closed by remote','term-status');
+   tab.status='closed';tab.sessionId=null;
+   showToast('会话 '+tab.title+' 已断开：exit（closed 态显示 Reconnect 条 — B-05 修复后规格；源码仅 error 态渲染）','error');
+   renderTabStrip();renderContent();renderStatusBar();
+  },200);
+  return 'logout';
+ }
+ if(c.indexOf('echo')===0)return c.slice(5);
+ return 'bash: '+c+': command not found';
+}
+function resolveConnect(tab){
+ var outcome=SCENARIOS[state.scenario].outcome;
+ if(outcome==='hang')return;
+ if(outcome==='success'){
+  tab.status='connected';tab.sessionId='ssh_'+nanoid10();
+  writeBanner(tab);
+ }else if(outcome==='remote-close'){
+  tab.status='connected';tab.sessionId='ssh_'+nanoid10();
+  writeBanner(tab);
+  renderTabStrip();renderContent();renderStatusBar();
+  setTimeout(function(){
+   tabLine(tab,'[status] closed: Connection closed by remote','term-status');
+   tab.status='closed';tab.sessionId=null;
+   showToast('会话 '+tab.title+' 已断开：Connection closed by remote（B-05：closed 态显示 Reconnect；B-11：断线全局 Toast——源码无此反馈，若发生在非激活 Tab 用户无感知）','error',5200);
+   renderTabStrip();renderContent();renderStatusBar();
+  },1500);
+  return;
+ }else{
+  tab.status='error';tab.sessionId=null;
+  var m=errorMessage(outcome,tab.conn);
+  tabLine(tab,'[error] '+m.err,'term-err');
+  tabLine(tab,m.hint,'term-fix');
+ }
+ renderTabStrip();renderContent();renderStatusBar();updatePtySize();
+}
+function reconnectTab(tabId){
+ var tab=state.tabs.filter(function(t){return t.id===tabId;})[0];
+ if(!tab)return;
+ if(tab.status!=='error'&&tab.status!=='closed')return;
+ tab.status='connecting';tab.lines=[];tabLine(tab,'Connecting...','term-dim');
+ renderTabStrip();renderContent();renderStatusBar();
+ var delay=state.scenario==='loading'?6000:1400;
+ setTimeout(function(){resolveConnect(tab);},delay);
+}
+
+/* ---------- TabStrip（B-11 新建连接语义） ---------- */
+var DOT={idle:{cls:'',filled:false,color:'var(--fg-secondary)'},connecting:{cls:'connecting',filled:false,color:'var(--warning)'},connected:{cls:'filled',filled:true,color:'var(--success)'},error:{cls:'filled',filled:true,color:'var(--error)'},closed:{cls:'',filled:false,color:'var(--fg-secondary)'}};
+function renderTabStrip(){
+ var strip=$('tabStrip');strip.innerHTML='';
+ state.tabs.forEach(function(tab){
+  var d=el('div','tab'+(state.activeTabId===tab.id?' active':''));
+  d.setAttribute('role','tab');
+  var dot=DOT[tab.status];
+  var inner='<span class="status-dot '+dot.cls+(dot.filled?' filled':'')+'" style="color:'+dot.color+'">●</span>';
+  if(state.editingTabId===tab.id){
+   inner+='<input class="tab-rename-input" type="text" value="'+esc(state.editTitle)+'">';
+  }else{
+   inner+='<span class="tab-title">'+esc(tab.title)+'</span>';
+  }
+  inner+='<button class="tab-close" title="Close tab">'+ICONS.x+'</button>';
+  d.innerHTML=inner;
+  d.title=state.editingTabId===tab.id?'':'(double-click to rename)';
+  d.onclick=function(e){
+   if(e.target.closest('.tab-close'))return;
+   if(e.target.closest('.tab-rename-input'))return;
+   state.activeTabId=tab.id;renderTabStrip();renderContent();renderStatusBar();updatePtySize();
+  };
+  d.ondblclick=function(e){
+   if(e.target.closest('.tab-close'))return;
+   state.editingTabId=tab.id;state.editTitle=tab.title;
+   renderTabStrip();
+   var inp=d.querySelector('.tab-rename-input');
+   if(inp){inp.focus();inp.select();}
+  };
+  d.querySelector('.tab-close').onclick=function(e){
+   e.stopPropagation();closeTab(tab.id);
+  };
+  var inp=d.querySelector('.tab-rename-input');
+  if(inp){
+   inp.oninput=function(){state.editTitle=inp.value;};
+   inp.onkeydown=function(e){
+    e.stopPropagation();
+    if(e.key==='Enter'){e.preventDefault();finishRename(tab.id);}
+    else if(e.key==='Escape'){e.preventDefault();cancelRename();}
+   };
+   inp.onblur=function(){finishRename(tab.id);};
+   inp.onclick=function(e){e.stopPropagation();};
+  }
+  strip.appendChild(d);
+ });
+ var plus=el('button','new-tab-btn',ICONS.plus);
+ plus.title='New connection (Ctrl+T)（B-11：入口语义修正为「新建连接」，源码事实同此行为）';
+ plus.onclick=handleNewTab;
+ strip.appendChild(plus);
+}
+function finishRename(tabId){
+ var t=state.editTitle.trim();
+ var tab=state.tabs.filter(function(x){return x.id===tabId;})[0];
+ if(t&&tab)tab.title=t;
+ state.editingTabId=null;state.editTitle='';
+ renderTabStrip();renderStatusBar();
+}
+function cancelRename(){state.editingTabId=null;state.editTitle='';renderTabStrip();}
+function handleNewTab(){
+ state.view='connections';state.collapsed=false;
+ renderActivityBar();renderShell();renderPanelContent();
+}
+function createFocusConn(){focusHost();}
+function closeTab(tabId){
+ var tab=state.tabs.filter(function(t){return t.id===tabId;})[0];
+ if(tab&&tab.sessionId){
+  showToast('session_close('+tab.sessionId+') 已调用——修复后契约（C-6）：无论通道关闭是否成功，后端保证从 SessionManager 移除该会话（源码缺陷：失败时会话泄漏，deferred-work 已记录）','info',5200);
+ }
+ var prevIdx=state.tabs.map(function(t){return t.id;}).indexOf(tabId);
+ state.tabs=state.tabs.filter(function(t){return t.id!==tabId;});
+ if(state.activeTabId===tabId){
+  var adj=state.tabs[Math.min(prevIdx,state.tabs.length-1)];
+  state.activeTabId=adj?adj.id:'';
+ }
+ renderTabStrip();renderContent();renderStatusBar();updatePtySize();
+}
+function activateTab(tabId){
+ if(!tabId)return;
+ state.activeTabId=tabId;
+ renderTabStrip();renderContent();renderStatusBar();updatePtySize();
+}
+function switchTab(dir){
+ if(state.tabs.length<1||!state.activeTabId)return;
+ var idx=state.tabs.map(function(t){return t.id;}).indexOf(state.activeTabId);
+ var next=(idx+dir+state.tabs.length)%state.tabs.length;
+ activateTab(state.tabs[next].id);
+}
+function gotoTabNum(n){
+ if(!state.tabs.length)return;
+ activateTab(state.tabs[Math.min(n-1,state.tabs.length-1)].id);
+}
+
+/* ---------- 内容区：终端面板 / PAGE009 引导式空态 ---------- */
+function renderContent(){
+ var area=$('contentArea');area.innerHTML='';
+ if(state.tabs.length===0){
+  var wrap=el('div','',badge('PAGE009','F010 引导 · B-02 引导式空态 · 来源 App.svelte L297-302')
+   +emptyGuided(ICONS.terminal,'No active terminals',
+    'Use the sidebar to fill in SSH details and click Connect. Each connection opens a new tab.（旧文案事实保留）',
+    '<button class="empty-btn primary" id="emptyNewConn">'+ICONS.plus+'新建连接（Ctrl+T）</button>',''));
+  wrap.style.height='100%';
+  area.appendChild(wrap);
+  var btn=$('emptyNewConn');
+  if(btn)btn.onclick=handleNewTab;
+  return;
+ }
+ state.tabs.forEach(function(tab){
+  var pane=el('div','terminal-pane'+(state.activeTabId===tab.id?' active':''));
+  var inner=badge('PAGE003','F014-F025 · B-04/B-05/B-08/B-12/B-13 · 来源 TerminalTab.svelte');
+  var body=el('div','term-body');
+  tab.lines.forEach(function(l){
+   var line=el('div','term-line '+l.cls);
+   line.textContent=l.text;
+   body.appendChild(line);
+  });
+  inner+=body.outerHTML;
+  var showInput=(tab.status==='connected');
+  var showReconnect=(tab.status==='error'||tab.status==='closed');
+  var inputRow='';
+  if(showInput){
+   inputRow='<div class="term-input-row"><span class="term-prompt">'+esc(tab.conn.username)+'@'+esc(tab.conn.host)+':~$</span><input class="term-input" data-tab="'+tab.id+'" placeholder="输入命令回显模拟（ls / pwd / whoami / uptime / df -h / exit / clear）"></div>';
+  }
+  var recBar='';
+  if(showReconnect){
+   recBar='<div class="reconnect-bar"><span class="reconnect-note">'+(tab.status==='closed'?'连接已断开（closed）——B-05 修复后规格：closed 态也提供重连入口（源码仅 error 态渲染 Reconnect）':'连接失败（error）')+'</span>'
+    +'<button class="reconnect-btn" data-rec="'+tab.id+'">'+ICONS.rotate+'Reconnect</button></div>';
+  }
+  pane.innerHTML=inner+inputRow+recBar;
+  area.appendChild(pane);
+  var inp=pane.querySelector('.term-input');
+  if(inp){
+   inp.onkeydown=function(e){
+    e.stopPropagation();
+    if(e.key==='Enter'){
+     var cmd=inp.value;
+     inp.value='';
+     tabLine(tab,tab.conn.username+'@'+tab.conn.host+':~$ '+cmd,'');
+     var resp=termCommandResponse(cmd,tab);
+     if(resp!==null&&resp!==undefined&&resp!=='')tabLine(tab,resp,'');
+     renderContent();
+     var nb=area.querySelector('.terminal-pane.active .term-body');
+     if(nb)nb.scrollTop=nb.scrollHeight;
+    }
+   };
+  }
+  var rb=pane.querySelector('[data-rec]');
+  if(rb)rb.onclick=function(){reconnectTab(tab.id);};
+ });
+ var active=area.querySelector('.terminal-pane.active .term-body');
+ if(active)active.scrollTop=active.scrollHeight;
+}
+
+/* ---------- StatusBar（F018/F021） ---------- */
+var STATUS_LABEL={idle:'Idle',connecting:'Connecting...',connected:'Connected',error:'Error',closed:'Disconnected'};
+function renderStatusBar(){
+ var left=$('statusLeft');
+ var tab=state.tabs.filter(function(t){return t.id===state.activeTabId;})[0];
+ if(tab){
+  left.innerHTML='<span class="status-dot '+(DOT[tab.status].cls||'')+(DOT[tab.status].filled?' filled':'')+'" style="color:'+DOT[tab.status].color+'">●</span><span>'+STATUS_LABEL[tab.status]+' to '+esc(tab.title)+'</span>';
+ }else{
+  left.innerHTML='<span class="status-idle">No active session</span>';
+ }
+ $('fontBtn').textContent=state.fontSize+'px mono ▾';
+ renderFontMenu();
+}
+function renderFontMenu(){
+ var menu=$('fontMenu');
+ if(!state.fontMenuOpen){menu.classList.add('hidden');return;}
+ menu.classList.remove('hidden');
+ menu.innerHTML='';
+ [10,11,12,13,14,15,16,18,20].forEach(function(s){
+  var b=el('button','font-option'+(s===state.fontSize?' active':''),s+'px');
+  b.onclick=function(){state.fontSize=s;state.fontMenuOpen=false;renderStatusBar();updatePtySize();};
+  menu.appendChild(b);
+ });
+}
+
+/* ---------- PAGE008 命令面板（B-03 占位引导化） ---------- */
+function openPalette(){
+ state.paletteOpen=true;
+ $('paletteBackdrop').classList.remove('hidden');
+ renderPaletteBody();
+ setTimeout(function(){$('paletteInput').focus();},0);
+}
+function closePalette(){
+ state.paletteOpen=false;
+ $('paletteBackdrop').classList.add('hidden');
+}
+function togglePalette(){state.paletteOpen?closePalette():openPalette();}
+function renderPaletteBody(){
+ var q=$('paletteInput').value.trim().toLowerCase();
+ var cats=[
+  {n:'视图切换（Connections / SFTP / Tunnel / Runbook / Settings）',k:'已实现动作 · F001'},
+  {n:'连接管理（新建连接 / 保存 / 删除 / 直连）',k:'已实现动作 · F005-F009'},
+  {n:'Tab 管理（切换 / 关闭 / 重命名）',k:'已实现动作 · F011-F013'},
+  {n:'终端操作（字号 / 重连）',k:'已实现动作 · F018/F020'},
+  {n:'更多命令（会话列表 / SFTP / 隧道 / Runbook 快捷入口）',k:'规划 · F033/C-1'}
+ ];
+ var list=cats.filter(function(c){return !q||c.n.toLowerCase().indexOf(q)>=0;});
+ var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-2)"><span style="color:var(--fg-secondary);font-size:var(--text-xs)">Command Palette</span><span class="palette-tag">占位实现（如实）</span></div>';
+ if(list.length===0)html+='<div class="palette-note">无匹配条目。</div>';
+ list.forEach(function(c){
+  html+='<div class="palette-cat"><span>'+esc(c.n)+'</span><span class="k">'+esc(c.k)+'</span></div>';
+ });
+ html+='<div class="palette-note">旧项目事实：面板仅有搜索框与 placeholder 提示，<b>无命令数据源（F033 规划）</b>。上方为按既有已实现动作归纳的规划类别，<b>不虚构可用命令</b>；真实命令集范围与优先级待 C 类决策（C-1）。B-03：占位引导化。</div>';
+ $('paletteBody').innerHTML=html;
+}
+
+/* ---------- 快捷键（App.svelte handleKeydown 行为基线） ---------- */
+function handleKeydown(e){
+ if(e.key==='Escape'){
+  if(state.paletteOpen){closePalette();return;}
+  if(!$('confirmOverlay').classList.contains('hidden')){closeDanger(false);return;}
+  if(!$('fpOverlay').classList.contains('hidden')){fpDecide(false);return;}
+  if(state.editingTabId){cancelRename();return;}
+  if(state.fontMenuOpen){state.fontMenuOpen=false;renderFontMenu();return;}
+ }
+ var target=e.target;
+ if(target&&(target.classList&&target.classList.contains('term-input')))return;
+ if(target instanceof HTMLInputElement||target instanceof HTMLTextAreaElement||target instanceof HTMLSelectElement)return;
+ var mod=e.ctrlKey||e.metaKey;
+ if(!mod)return;
+ if(e.shiftKey){
+  if(e.key==='Tab'){e.preventDefault();switchTab(-1);return;}
+  if(e.key==='P'||e.key==='p'){e.preventDefault();togglePalette();return;}
+  if(e.key==='N'||e.key==='n'){e.preventDefault();createFocusConn();return;}
+  return;
+ }
+ if(e.altKey)return;
+ if(e.key==='Tab'){e.preventDefault();switchTab(1);return;}
+ if(e.key==='t'||e.key==='T'){e.preventDefault();handleNewTab();return;}
+ if(e.key==='w'||e.key==='W'){e.preventDefault();if(state.activeTabId)closeTab(state.activeTabId);return;}
+ if(e.key==='\\'){e.preventDefault();state.collapsed=!state.collapsed;renderShell();return;}
+ var num=parseInt(e.key,10);
+ if(num>=1&&num<=9){e.preventDefault();gotoTabNum(num);return;}
+}
+
+/* ---------- 侧栏拖拽（SidePanel onDragStart：180-400 钳制） ---------- */
+function initDrag(){
+ var handle=$('dragHandle');
+ var startX=0,startWidth=0,min=180,max=400;
+ function onMove(ev){
+  var delta=ev.clientX-startX;
+  state.panelWidth=Math.min(max,Math.max(min,startWidth+delta));
+  var sp=$('sidePanel');
+  sp.classList.add('dragging');
+  sp.style.width=state.panelWidth+'px';
+ }
+ function onUp(){
+  window.removeEventListener('mousemove',onMove);
+  window.removeEventListener('mouseup',onUp);
+  $('sidePanel').classList.remove('dragging');
+  document.body.style.userSelect='';
+  document.body.style.cursor='';
+ }
+ handle.addEventListener('mousedown',function(e){
+  e.preventDefault();
+  startX=e.clientX;startWidth=state.panelWidth;
+  document.body.style.userSelect='none';
+  document.body.style.cursor='col-resize';
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('mouseup',onUp);
+ });
+}
+
+/* ---------- PTY 尺寸模拟（F017） ---------- */
+function updatePtySize(){
+ var body=document.querySelector('.terminal-pane.active .term-body');
+ if(!body){$('ptySize').textContent='—×—';return;}
+ var w=body.clientWidth-24,h=Math.max(body.clientHeight,100);
+ var cols=Math.max(20,Math.floor(w/(state.fontSize*0.62)));
+ var rows=Math.max(6,Math.floor(h/(state.fontSize*1.45)));
+ $('ptySize').textContent=cols+'×'+rows;
+}
+
+/* ---------- 窗口缩放适配 ---------- */
+function fitWindow(){
+ var wrap=$('windowWrap');
+ var availW=wrap.clientWidth-24,availH=wrap.clientHeight-24;
+ var scale=Math.min(1,availW/1200,availH/800);
+ $('windowFrame').style.transform='scale('+scale+')';
+}
+
+/* ---------- 评审面板 ---------- */
+function renderScenarioList(){
+ var box=$('scenarioList');box.innerHTML='';
+ Object.keys(SCENARIOS).forEach(function(key){
+  var sc=SCENARIOS[key];
+  var b=el('button','scenario-item'+(state.scenario===key?' active':''));
+  b.innerHTML=esc(sc.label)+'<span class="tag">'+esc(sc.tag)+'</span>';
+  b.onclick=function(){applyScenario(key);};
+  box.appendChild(b);
+ });
+}
+function applyScenario(key){
+ state.scenario=key;
+ var sc=SCENARIOS[key];
+ var emptySaved=(key==='empty'||key==='firstrun');
+ if(emptySaved)state.saved=[];
+ else state.saved=DEFAULT_SAVED.map(function(c){return Object.assign({},c,{firstTime:c.firstTime});});
+ state.selectedConnId='';
+ if(key==='firstrun'){state.tabs=[];state.activeTabId='';}
+ renderScenarioList();renderActivityBar();renderShell();renderPanelContent();renderTabStrip();renderContent();renderStatusBar();updatePtySize();
+ if(key==='empty')showToast('场景：空数据——无已存连接（connection_list 返回空），已开 Tab 保留可继续 Reconnect 演示','info');
+ else if(key==='firstrun')showToast('场景：首次使用——无已存连接、无 Tab，PAGE009 引导式空态呈现','info');
+ else if(key==='loading')showToast('场景：加载中——Connect 后 connecting 持续保持（Loading 态；真实基线为 15s 超时，另有「连接超时」场景演示报错路径）','info');
+ else if(sc.outcome!=='success'&&sc.outcome!=='remote-close')showToast('场景：'+sc.label+'——下次 Connect / Reconnect 按此结果呈现','info');
+ else if(sc.outcome==='remote-close')showToast('场景：远端断开——连接成功后约 1.5 秒远端关闭','info');
+}
+var SHORTCUTS=[
+ {label:'Ctrl+T',fn:function(){handleNewTab();}},
+ {label:'Ctrl+W',fn:function(){if(state.activeTabId)closeTab(state.activeTabId);}},
+ {label:'Ctrl+1',fn:function(){gotoTabNum(1);}},
+ {label:'Ctrl+2',fn:function(){gotoTabNum(2);}},
+ {label:'Ctrl+3',fn:function(){gotoTabNum(3);}},
+ {label:'Ctrl+Tab',fn:function(){switchTab(1);}},
+ {label:'Ctrl+⇧+Tab',fn:function(){switchTab(-1);}},
+ {label:'Ctrl+\\',fn:function(){state.collapsed=!state.collapsed;renderShell();}},
+ {label:'Ctrl+⇧+P',fn:function(){togglePalette();}},
+ {label:'Ctrl+⇧+N',fn:function(){createFocusConn();}},
+ {label:'Esc',fn:function(){if(state.paletteOpen)closePalette();else if(!$('confirmOverlay').classList.contains('hidden'))closeDanger(false);else if(!$('fpOverlay').classList.contains('hidden'))fpDecide(false);}}
+];
+function renderShortcuts(){
+ var row=$('shortcutRow');row.innerHTML='';
+ SHORTCUTS.forEach(function(s){
+  var b=el('button','sim-btn',s.label);
+  b.onclick=s.fn;
+  row.appendChild(b);
+ });
+}
+var PAGE_NAV=[
+ {pid:'PAGE001',name:'应用主工作台（外壳）',fn:'F001-F003/F010-F013',go:function(){state.view='connections';renderActivityBar();renderShell();renderPanelContent();}},
+ {pid:'PAGE002',name:'连接中心（主机卡+表单）',fn:'F004-F009 · B-01/07/09',go:function(){focusHost();}},
+ {pid:'PAGE003',name:'终端会话页',fn:'F014-F025 · B-04/05/08/12/13',go:function(){if(!state.tabs.length){showToast('请先在连接中心点击 Connect 创建终端 Tab','info');focusHost();}else{activateTab(state.activeTabId||state.tabs[0].id);}}},
+ {pid:'PAGE004',name:'SFTP 视图（引导式空态）',fn:'F029/F038 · B-02',go:function(){state.view='sftp';state.collapsed=false;renderActivityBar();renderShell();renderPanelContent();}},
+ {pid:'PAGE005',name:'隧道视图（引导式空态）',fn:'F030/F039 · B-02',go:function(){state.view='tunnel';state.collapsed=false;renderActivityBar();renderShell();renderPanelContent();}},
+ {pid:'PAGE006',name:'Runbook 视图（引导式空态）',fn:'F031/F040 · B-02',go:function(){state.view='runbook';state.collapsed=false;renderActivityBar();renderShell();renderPanelContent();}},
+ {pid:'PAGE007',name:'设置视图（引导式空态）',fn:'F032/F034 · B-02/B-10',go:function(){state.view='settings';state.collapsed=false;renderActivityBar();renderShell();renderPanelContent();}},
+ {pid:'PAGE008',name:'命令面板（占位引导化）',fn:'F033 · B-03',go:function(){openPalette();}},
+ {pid:'PAGE009',name:'终端区空态（引导式）',fn:'F010 · B-02',go:function(){state.tabs=[];state.activeTabId='';renderTabStrip();renderContent();renderStatusBar();updatePtySize();showToast('已关闭全部 Tab（模拟），呈现 PAGE009 引导式空态','info');}},
+ {pid:'PAGE010',name:'Toast 通知浮层',fn:'F022',go:function(){showToast('演示 success Toast——3 秒自动消失，点击立即关闭','success');}}
+];
+function renderPageNav(){
+ var box=$('pageNav');box.innerHTML='';
+ PAGE_NAV.forEach(function(p){
+  var b=el('button','page-nav-item');
+  b.innerHTML='<span><span class="pid">'+p.pid+'</span>'+esc(p.name)+'</span><span class="pfn">'+esc(p.fn)+'</span>';
+  b.onclick=p.go;
+  box.appendChild(b);
+ });
+}
+var B_ITEMS=[
+ 'B-01 连接中心收敛为单一主机卡列表，移除重复下拉（F-01）',
+ 'B-02 PAGE004-007 引导式空态：引导按钮+规划标注（P-01）',
+ 'B-03 命令面板占位引导化：类别+不虚构声明（P-03）',
+ 'B-04 错误提示去除 Ctrl+R 死文案（FL-01，源码缺陷修正）',
+ 'B-05 closed 态显示 Reconnect 条（FL-02，源码缺陷修正）',
+ 'B-06 自绘危险确认替代原生 confirm（F-05）',
+ 'B-07 主机卡 Connect 快连按钮+双击保留（F-06）',
+ 'B-08 认证失败补凭据修正指引（FL-03）',
+ 'B-09 密码字段辅助说明：密钥探测行为如实告知（P-04）',
+ 'B-10 设置空态引导至状态栏字号入口（P-02）',
+ 'B-11 「新建 Tab」入口统一为「新建连接」语义（FL-08）',
+ 'B-12 首连 TOFU 指纹确认对话框（FL-09，确认式升级）',
+ 'B-13 主机密钥变更 MITM 专案错误映射（FL-10，源码缺陷修正）'
+];
+function renderBList(){
+ var box=$('bList');box.innerHTML='';
+ B_ITEMS.forEach(function(t){
+  var li=el('li','',esc(t)+' <span class="src">（product-review §六）</span>');
+  box.appendChild(li);
+ });
+}
+var C_ITEMS=[
+ 'C-1 13 项规划功能范围与优先级：<b>F034 设置持久化 · F035 编辑连接 · F036 连接组织 · F037 自动重连 · F033 命令面板命令集 · F038 SFTP · F039 隧道 · F040 Runbook · F041 Keychain · F042 危险命令确认 · F043 监控 · F044 复制粘贴 · F045 密钥认证 UI · F046 更新通知</b>（含 5 占位视图排期）——V1 一律不虚构',
+ 'C-2 密钥认证 UI（key_path）是否进 V1（F045）',
+ 'C-3 字号设置迁移入设置页+持久化（F032/F034）',
+ 'C-4 是否注册 Ctrl+R 为重连快捷键（FL-01）',
+ 'C-5 Ctrl+Tab 等保留组合键的 Tauri 拦截策略（F-07）',
+ 'C-6 session_close 泄漏修复时机（源码级；V1 按修复后契约呈现）',
+ 'C-7 加密失败降级策略（源码事实=明文落盘；V1 呈现=拒绝保存）',
+ 'C-8 connection_list 明文密码内存暴露面与 Keychain 集成'
+];
+function renderCList(){
+ var box=$('cList');box.innerHTML='';
+ C_ITEMS.forEach(function(t){
+  var li=el('li','',t);
+  box.appendChild(li);
+ });
+}
+
+/* ---------- 初始化 ---------- */
+function init(){
+ state.saved=DEFAULT_SAVED.map(function(c){return Object.assign({},c);});
+ $('collapseBtn').innerHTML=ICONS.chevronLeft;
+ $('collapseBtn').onclick=function(){state.collapsed=!state.collapsed;renderShell();};
+ $('fontBtn').onclick=function(ev){
+  ev.stopPropagation();
+  state.fontMenuOpen=!state.fontMenuOpen;
+  renderFontMenu();
+ };
+ document.addEventListener('mousedown',function(ev){
+  if(state.fontMenuOpen&&!$('fontArea').contains(ev.target)){state.fontMenuOpen=false;renderFontMenu();}
+ });
+ $('paletteBackdrop').addEventListener('click',function(ev){
+  if(ev.target===$('paletteBackdrop'))closePalette();
+ });
+ $('paletteInput').addEventListener('keydown',function(ev){
+  if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();closePalette();}
+ });
+ $('paletteInput').addEventListener('input',renderPaletteBody);
+ $('confirmCancel').onclick=function(){closeDanger(false);};
+ $('confirmOk').onclick=function(){closeDanger(true);};
+ $('confirmCancel').addEventListener('keydown',function(ev){
+  if(ev.key==='Escape'){ev.preventDefault();closeDanger(false);}
+ });
+ $('fpAbort').onclick=function(){fpDecide(false);};
+ $('fpTrust').onclick=function(){fpDecide(true);};
+ $('demoToastBtn').onclick=function(){
+  showToast('演示 success——3 秒自动消失（F022 行为基线）','success');
+  setTimeout(function(){showToast('演示 error——红边 ✕','error');},350);
+  setTimeout(function(){showToast('演示 info——蓝边 ℹ','info');},700);
+ };
+ $('demoFpBtn').onclick=function(){showFingerprint(DEFAULT_SAVED[0]);};
+ $('demoDangerBtn').onclick=function(){
+  askDanger('危险确认（演示）','演示 B-06 危险确认对话框：说明动作与后果，取消为默认焦点，确认为具体危险动词。','删除',function(){showToast('演示：已确认危险操作','info');});
+ };
+ window.addEventListener('resize',function(){fitWindow();updatePtySize();});
+ document.addEventListener('keydown',handleKeydown);
+ initDrag();
+ renderScenarioList();renderShortcuts();renderPageNav();renderBList();renderCList();
+ renderActivityBar();renderShell();renderPanelContent();renderTabStrip();renderContent();renderStatusBar();
+ fitWindow();updatePtySize();
+ showToast('V1 原型已加载：桌面窗口画框（1200×800）+ 右侧评审面板。默认场景连接 prod-web-01 将触发 TOFU 指纹确认（B-12）。','info',5000);
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
